@@ -4,6 +4,7 @@
  */
 import { libraryMeta, libraryRow, libraryTable, type LibraryRow } from "./library.ts";
 import { bodyOutputs } from "./physiology.ts";
+import { bodyMassDelta } from "./nutrition.ts";
 import { saturation } from "./atmosphere.ts";
 import type { World } from "./world.ts";
 import { trackCrisis } from "./crisis.ts";
@@ -88,6 +89,9 @@ export function initialiseCirculation(w: World, body: string, profile?: { bloodV
   if (!volume) throw new Error("circulation: zero baseline");
   p.circulation_initial_ml = p.blood_volume_ml = volume;
   p.circulation_initial_hb_g = p.blood_hb_g = hb * volume / 100;
+  const plasmaFraction = numberIn(row("quantities", "plasma-volume")["Normal (70 kg man)"], /\(([\d.]+)%\)/) / 100;
+  p.blood_red_cells_ml = volume * (1 - plasmaFraction);
+  p.circulation_dehydration_ml = 0;
   p.blood_lost_ml = p.blood_received_ml = p.blood_hb_lost_g = 0;
 }
 
@@ -102,10 +106,13 @@ export function loseBlood(w: World, body: string, ml: number): number {
   finite(ml, "blood loss"); initialiseCirculation(w, body);
   const b = w.registry.component(body), p = b.props, actual = Math.min(ml, p.blood_volume_ml);
   const hb = p.blood_volume_ml ? p.blood_hb_g * actual / p.blood_volume_ml : 0;
+  const retained = p.blood_volume_ml ? 1 - actual / p.blood_volume_ml : 0;
+  p.blood_red_cells_ml *= retained;
+  p.circulation_dehydration_ml *= retained;
   p.blood_volume_ml -= actual; p.blood_lost_ml += actual;
   p.blood_hb_g -= hb; p.blood_hb_lost_g += hb;
   const kg = actual * normal("blood-density") / 1000; // mL x kg/L / 1000 = kg
-  b.mass -= kg;
+  bodyMassDelta(w, body, -kg, "circulation", "shed blood");
   w.trace.record({ t: w.t, process: "circulation", quantity: "volume:blood", from: body, to: "shed-blood", amount: actual });
   w.trace.record({ t: w.t, process: "circulation", quantity: "mass:haemoglobin", from: body, to: "shed-blood", amount: hb / 1000 });
   w.trace.record({ t: w.t, process: "circulation", quantity: "mass:blood", from: body, to: "shed-blood", amount: kg });
@@ -131,6 +138,31 @@ export function regulationLoops() {
   }]));
 }
 
+/** Evidence level 5 (2623): signed % changes are an unconfirmed interpretation of
+ * the source's y = intercept + slope*x. x is negative for lost body mass. Do not
+ * turn its slope into a pure ratio. No contraction at zero deficit or positive y.
+ */
+function hydrationPlasma(w: World, body: string) {
+  const b = w.registry.component(body), p = b.props, out = bodyOutputs(b);
+  const value = row("quantities", "plasma-volume-per-dehydration")["Normal (70 kg man)"];
+  let lossFraction = 0;
+  out["circulation.quantities.plasma-volume-evidence-level"] = 5;
+  if (value !== null && (p.waterDeficitPct ?? 0) > 0) {
+    const fit = /y = ([\d.]+) \+ ([\d.]+)x/.exec(String(value));
+    if (!fit) throw new Error("circulation: plasma-volume-per-dehydration needs the sourced regression, including its intercept");
+    const y = Number(fit[1]) - Number(fit[2]) * p.waterDeficitPct;
+    lossFraction = Math.min(1, Math.max(0, -y / 100));
+  }
+  const plasmaBase = p.blood_volume_ml - p.blood_red_cells_ml + p.circulation_dehydration_ml;
+  const removed = plasmaBase * lossFraction, delta = p.circulation_dehydration_ml - removed;
+  p.blood_volume_ml += delta; p.circulation_dehydration_ml = removed;
+  // A subvolume of existing body water: no second mass:water or mass:body transfer.
+  if (delta !== 0) w.trace.record({ t: w.t, process: "circulation", quantity: "volume:blood", from: delta > 0 ? `${body}:extravascular-water` : body,
+    to: delta > 0 ? body : `${body}:extravascular-water`, amount: Math.abs(delta), note: "hydration plasma shift (evidence level 5)" });
+  out["circulation.quantities.plasma-volume"] = p.blood_volume_ml - p.blood_red_cells_ml;
+  out["circulation.quantities.red-cell-mass"] = p.blood_red_cells_ml;
+}
+
 /** First-order volume recovery only with a host tau and an explicit finite supply of
  * already available intravascular replacement fluid (props.circulation_fluid_ml).
  * This does not model oral absorption or manufacture red cells. */
@@ -152,6 +184,7 @@ export function circulationProcess(body: string, options: CirculationOptions = {
       w.trace.record({ t: w.t, process: "circulation", quantity: "volume:blood", from: `${body}:replacement-fluid`, to: body, amount: ml });
       w.trace.check(w.t, `volume:replacement-fluid:${body}`, supply, p.circulation_fluid_ml + ml, 1e-6);
     }
+    hydrationPlasma(w, body);
     const effects = bleedingEffects(p.blood_lost_ml, p.circulation_initial_ml);
     if (p.blood_received_ml > 0) {
       effects.pressure = null;

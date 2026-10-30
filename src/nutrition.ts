@@ -19,8 +19,8 @@ import type { Process } from "./scheduler.ts";
 import type { World } from "./world.ts";
 import type { Component } from "./registry.ts";
 import { KCAL_J } from "./physics.ts";
-import { libraryTable, type LibraryRow } from "./library.ts";
-import { bodyOutputs, ingest } from "./physiology.ts";
+import { libraryRow, libraryTable, type LibraryRow } from "./library.ts";
+import { addBodyWater, bodyOutputs, ingest } from "./physiology.ts";
 
 const UNIT_KG = { g: 1e-3, mg: 1e-6, mcg: 1e-9 } as const;
 type Unit = keyof typeof UNIT_KG;
@@ -376,11 +376,20 @@ function composition(): Composition {
   return comp;
 }
 
-/**
- * Water bound to stored glycogen, g of water per g of glycogen. UNSOURCED in the library (flags/nutrition.md): the textbook figure
- * (about 3 g per g, Olsson and Saltin 1970, Sherman 1982), not read from a table row.
- */
-export const GLYCOGEN_BOUND_WATER = 3;
+/** The library's convention, not an exact physiological constant; null disables this transfer. */
+export const GLYCOGEN_BOUND_WATER: number | null = (() => {
+  const value = libraryRow("nutrition", "body_composition", "nutrition.body_composition.glycogen-bound-water").Rule;
+  return value === null ? null : typeof value === "number" ? value : grab(String(value), /([\d.]+) g of water/, "glycogen-bound water");
+})();
+
+/** realism.nutrition.body_mass: the sole runtime writer of body component mass. */
+export function bodyMassDelta(w: World, body: string, kg: number, process: string, note: string) {
+  const b = w.registry.component(body), before = b.mass;
+  if (b.kind !== "body" || !Number.isFinite(before) || !Number.isFinite(kg) || before + kg < 0) throw new Error("nutrition: invalid body mass delta");
+  b.mass += kg;
+  w.trace.record({ t: w.t, process, quantity: "mass:body", from: kg >= 0 ? process : body, to: kg >= 0 ? body : process, amount: Math.abs(kg), note });
+  w.trace.check(w.t, "mass:body", before + kg, b.mass, 1e-9);
+}
 
 /** The energy density of stored fat the library gives (kcal/kg), 7,700 in the table. */
 export function fatKcalPerKg(): number { return composition().kcalPerKgFat; }
@@ -452,13 +461,16 @@ function closeDay(w: World, bodyId: string, o: NutritionOptions, sweatKg: number
     fatDelta = next - p.fat_kg; unplaced = rest - fatDelta * c.kcalPerKgFat;
     p.fat_kg = next;
   }
-  // body mass = fat + glycogen with its bound water + the body water change of physiology's ledger (the ledger does not hold the bound water)
-  const waterChangeKg = (p.nut_water_mark ?? 0) - (p.waterDeficitKg ?? 0);
-  p.nut_water_mark = p.waterDeficitKg ?? 0;
-  const glycogenKg = g / 1000, boundKg = glycogenKg * GLYCOGEN_BOUND_WATER, massBefore = b.mass;
-  b.mass += fatDelta + glycogenKg + boundKg + waterChangeKg;
-  w.trace.check(w.t, "mass:body", massBefore + fatDelta + glycogenKg * (1 + GLYCOGEN_BOUND_WATER) + waterChangeKg, b.mass, 1e-9);
-  out.glycogen_bound_water_kg = glycogen / 1000 * GLYCOGEN_BOUND_WATER; out.water_change_kg = waterChangeKg;
+  // Water (including glycogen-associated water) changes mass immediately through physiology.
+  const glycogenKg = g / 1000, boundKg = glycogenKg * (GLYCOGEN_BOUND_WATER ?? 0);
+  if (GLYCOGEN_BOUND_WATER === null) w.trace.note(w.t, "(2623) unvalidated: null glycogen-bound-water row; water delta disabled");
+  if (boundKg !== 0) addBodyWater(w, bodyId, boundKg, "nutrition", "glycogen-bound water");
+  bodyMassDelta(w, bodyId, fatDelta, "nutrition", "fat storage");
+  bodyMassDelta(w, bodyId, glycogenKg, "nutrition", "glycogen storage");
+  out.glycogen_bound_water_kg = GLYCOGEN_BOUND_WATER === null ? null : glycogen / 1000 * GLYCOGEN_BOUND_WATER;
+  const waterChangeKg = -(p.waterDeficitKg ?? 0);
+  out.water_change_kg = waterChangeKg - (p.nut_water_report_mark ?? 0);
+  p.nut_water_report_mark = waterChangeKg; // reporting only; never applied to mass
   p.glycogen_g = glycogen;
   p.nut_balance_kcal = (p.nut_balance_kcal ?? 0) + balance;
   p.nut_unplaced_kcal = (p.nut_unplaced_kcal ?? 0) + unplaced;
@@ -484,7 +496,7 @@ export function nutritionProcess(body: string, o: NutritionOptions = {}): Proces
     const clock = clockH0 + w.t / 3600, dayIndex = Math.floor((clock - dayStartH) / 24);
     if (p.nut_day_index === undefined) {
       // the marks start at zero: physiology's totals and the blood lost count from the body's beginning, so the first day holds all of them
-      p.nut_day_index = dayIndex; p.nut_intake_mark = 0; p.nut_spent_mark = 0; p.nut_sweat_mark = 0; p.nut_blood_mark = 0; p.nut_start_mass = b.mass; p.nut_water_mark = 0;
+      p.nut_day_index = dayIndex; p.nut_intake_mark = 0; p.nut_spent_mark = 0; p.nut_sweat_mark = 0; p.nut_blood_mark = 0; p.nut_start_mass = b.mass;
     }
     p.nut_met_over_h = (p.nut_met_over_h ?? 0) + Math.max(0, Number(bodyOutputs(b).met ?? 0) - composition().glycogenOverMet) * dt / 3600;
     const endDayIndex = Math.floor((clockH0 + (w.t + dt) / 3600 - dayStartH) / 24);

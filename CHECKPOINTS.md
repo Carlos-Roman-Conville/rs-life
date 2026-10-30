@@ -66,7 +66,7 @@ are not exercised. No unsupported calibration has been enabled for this checkpoi
 | Physiology: sweat, skin area/h, thermoregulating tissue vs core | Superseded by `hydration-week` (2540, below): ISO 7730 heat balance, DuBois area. Until 2540 the fixture lost its full 40 kg of water by day 7. The comfort skin temperature, the lack of clothing and the dripping are FLAGS limits. Energy bookkeeping is still not validation of heat control. |
 | Physiology: hydration threshold shift, core cooling, shade bonus, heat-day definition, cold drift | Urine, breath, skin diffusion and metabolic water now move water (2540). Cooling and cold paths remain absent. The daily sheltered core reset is the library rule; a constant final core does not prove thermal safety. No shade bonus is added; heat acclimatisation keeps its any-hot-step definition. |
 | Physiology: sleep quality and debt cap | Continuous six/four-hour nights use no unsupported quality weights or debt cap. No split-night or sleep-quality calibration is claimed. |
-| Nutrition: starting fat, lean catabolism, starvation clock, glycogen water/body mass | Initial fat and water are declared host inputs. Mass is fat + glycogen with bound water (3 g/g, unsourced: flags/nutrition.md) + the water ledger's change (checked as `mass:body`); it excludes food oxidation and lean tissue. No survival/death or starvation-stage inference is made. |
+| Nutrition: starting fat, lean catabolism, starvation clock, glycogen water/body mass | Initial fat and water are declared host inputs. Mass changes by fat + dry glycogen + the single water ledger (including glycogen-associated water at the library convention; 2623), traced as `mass:body`; it excludes food oxidation and lean tissue. No survival/death or starvation-stage inference is made. |
 | Nutrition: deficiency stages, pools without reserves, recovery clocks | Only numeric pooled reserves and stage 1 are exercised. Sodium and magnesium stay full all week on the supper's salt beef and dried pease (2554); the old day-1 sodium depletion was the pool cap taken at eating time, before the day's use, plus an unsalted diet. The table's daily use is drawn from the absorbed amount, so magnesium needs about 1 g eaten a day. Unpooled nutrients have no invented reserve; stages 2/3 stay disabled. A seven-day run cannot validate long deficiency/recovery times. |
 | Nutrition: absorption, food classes, missing vitamins, protein quality | Existing meal absorption and named fish classification are used; missing vitamin D/iodine, protein quality and unpooled chemistry remain unsupported. No flux, raw-fish, alcohol, cooking or grain modifiers are added. |
 | Nutrition: fullness/hunger/appetite | Meals are prescribed. No automatic hunger or appetite signal is fabricated for neurology. |
@@ -92,50 +92,49 @@ Sweat is the evaporation the heat balance requires at the ISO 7730 comfort skin
 temperature, less the skin diffusion, at most the hydration source's 2.5 L/h.
 A sourced sweat fit by MET and WBGT could not be opened (web access denied); see FLAGS.md.
 
-Day 7 of the unchanged fixture (3 kg drink a day, 18–24 C, MET 3–6) (2565 refresh):
+Day 7 of the unchanged fixture (3 kg drink a day, 18–24 C, MET 3–6) (2623 refresh):
+Water now has one ledger and changes body mass immediately, so metabolic demand, heat capacity and checkpoint figures move.
 
 | Water | kg |
 | --- | --- |
-| In | 4.394 (food and drink 3.895, metabolic 0.499) |
-| Out | 4.394 |
+| In | 4.395 (food and drink 3.895, metabolic 0.499) |
+| Out | 4.395 |
 | Out: sweat | 2.399 |
 | Out: urine | 1.03 |
-| Out: skin diffusion | 0.571 |
+| Out: skin diffusion | 0.572 |
 | Out: breath | 0.394 |
-| Deficit | 0.352 (0.503%, row `physiology.hydration.0-to-1`) |
+| Deficit | 0.353 (0.504%, row `physiology.hydration.0-to-1`) |
 
 (2565 refresh) The 2540 figures were 4.311 in and out (food and drink 3.813, metabolic 0.498), sweat 2.395,
 urine 0.953, skin 0.570, breath 0.393, deficit 0.359 (0.51%). 2554 (supper gained 0.1 kg salt beef and 0.25 kg
 dried pease, so more food water) moved them; 2552 and the later tasks did not change a water row beyond that.
 The example does not print the dripped share, so the old "about 0.87 dripped" is dropped, not re-measured.
-Days 2–7 now stay between 4.389 and 4.399 kg out. Day 1 passes 1.283 kg of urine while the first surplus clears
-(2540: 1.21 kg), 4.751 kg out in all, with 2.502 kg of sweat.
+(2623 refresh) Days 2–7 stay between 4.390 and 4.400 kg out. Day 1 passes 1.290 kg of urine while the first surplus clears,
+4.750 kg out in all, with 2.495 kg of sweat.
 
-### Week ledger, energy and mass (2565 refresh)
+### Week ledger, energy and mass (2623 refresh)
 
-(2565 refresh) Copied from `examples/human-week.ts`. 2552 (body mass now counts glycogen and its bound water) and
-2554 (supper gained 0.1 kg salt beef and 0.25 kg dried pease) changed these rows; no later task is known to have moved them (the run shows no sign of 2557, 2561 or 2564 in these columns).
+(2623 refresh) Copied from `examples/human-week.ts`; immediate water mass updates change the within-day rate and water/heat calculations. The old daily mass catch-up is removed.
 
 | Day | kcal in | kcal out | Stored | Mass kg | Deficit kg | Sleep debt h | Alertness | CO2 peak ppm |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 4061.5 | 3730.297 | 331.203 | 69.686 | 0.357 | 2 | 0.780 | 1406.432 |
-| 2 | 4061.5 | 3723.192 | 338.308 | 69.735 | 0.352 | 4 | 0.718 | 1402.016 |
-| 3 | 4061.5 | 3799.743 | 261.757 | 69.774 | 0.347 | 8 | 0.718 | 1519.093 |
-| 4 | 4061.5 | 3725.184 | 336.316 | 69.812 | 0.352 | 10 | 0.718 | 1488.978 |
-| 5 | 4061.5 | 3801.533 | 259.967 | 69.851 | 0.347 | 14 | 0.640 | 1520.345 |
-| 6 | 4061.5 | 3726.934 | 334.566 | 69.889 | 0.352 | 16 | 0.640 | 1490.196 |
-| 7 | 4061.5 | 3727.797 | 333.703 | 69.933 | 0.352 | 18 | 0.640 | 1404.973 |
+| 1 | 4061.5 | 3723.733 | 337.767 | 69.688 | 0.356 | 2 | 0.780 | 1377.416 |
+| 2 | 4061.5 | 3724.462 | 337.038 | 69.735 | 0.352 | 4 | 0.718 | 1377.824 |
+| 3 | 4061.5 | 3801.040 | 260.460 | 69.774 | 0.347 | 8 | 0.718 | 1491.718 |
+| 4 | 4061.5 | 3726.220 | 335.280 | 69.812 | 0.353 | 10 | 0.718 | 1462.326 |
+| 5 | 4061.5 | 3802.820 | 258.680 | 69.851 | 0.347 | 14 | 0.640 | 1492.230 |
+| 6 | 4061.5 | 3727.960 | 333.540 | 69.889 | 0.353 | 16 | 0.640 | 1462.825 |
+| 7 | 4061.5 | 3728.958 | 332.542 | 69.932 | 0.353 | 18 | 0.640 | 1379.013 |
 
-Core temperature prints 37.000 every day. Mass rises 0.247 kg over the week (69.686 to 69.933), where the
+Core temperature prints 37.000 every day. Mass rises 0.244 kg between the first and last closes (69.688 to 69.932), a net 0.068 kg loss from the 70 kg start, where the
 fat-only proxy before 2552 gave 69.537 on day 7. Sodium and magnesium pools print full on every day.
 
-Across the week the deficit stays between -0.90% and 1.59%. The peak is day 1 at 17:58,
-after the 15:00–17:00 carpentry and smithing hours (2540 figures: the example prints only day-end
-deficits, 0.496% to 0.51%, so the minute-level range is not re-measured here). Every minute is inside the table's
+Across the week the deficit stays between -0.90% and 1.58% (2623 minute-level replay).
+The peak is day 1 at 17:59, after the afternoon carpentry and smithing hours. Every minute is inside the table's
 mild band (the rows under 2%, "1 to 2": thirst, Endurance pool x0.95).
 
-The daily water out, about 4.4 kg (2565 refresh: 4.389 to 4.399 on days 2–7), is above the library's 3.7 L/day total need (PHY-HYD) for a
-man doing eight hours of MET 3 to 6 work. Mass is 69.933 kg on day 7 (2565 refresh; the 2540 fat-only proxy gave 69.537, before
+The daily water out, about 4.4 kg (2623 refresh: 4.390 to 4.400 on days 2–7), is above the library's 3.7 L/day total need (PHY-HYD) for a
+man doing eight hours of MET 3 to 6 work. Mass is 69.932 kg on day 7 (2623 refresh; the 2540 fat-only proxy gave 69.537, before
 2552 added glycogen and its bound water).
 
 A MET 6 worker in a 32 C, 50% room (BoM WBGT 31.4 C, core 37.85 C after an hour) loses
@@ -143,12 +142,12 @@ water in the first hour as follows:
 
 | Hot fixture, first hour | L |
 | --- | --- |
-| Sweat | 0.728 |
+| Sweat | 0.726 |
 | Breath | 0.042 |
 | Urine (obligatory) | 0.021 |
 | Skin diffusion | 0.013 |
 | Metabolic water made | 0.055 |
-| Net loss | 0.75 |
+| Net loss | 0.747 |
 
 Both the sweat and the net loss are inside the hydration source's 0.5 to 2.5 L/h.
 

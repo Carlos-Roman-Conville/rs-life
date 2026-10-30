@@ -4,7 +4,7 @@ import { Scheduler } from "../src/scheduler.ts";
 import { defaultRegistry, type Component } from "../src/registry.ts";
 import { KCAL_J, metabolicHeat } from "../src/physics.ts";
 import { libraryRow } from "../src/library.ts";
-import { restingMetabolicRate, bodyOutputs, circadianRow, coreRow, hydrationRow, ingest, metOf, overnight, palRange, physiologyProcess, sleepDebtRow, splitSleepQuality, wbgtCeiling, wbgtClass, type PhysiologyOptions } from "../src/physiology.ts";
+import { addBodyWater, restingMetabolicRate, bodyOutputs, circadianRow, coreRow, hydrationRow, ingest, metOf, overnight, palRange, physiologyProcess, sleepDebtRow, splitSleepQuality, wbgtCeiling, wbgtClass, type PhysiologyOptions } from "../src/physiology.ts";
 
 interface Setup { roomC?: number; wbgt?: number; body?: Record<string, number>; waterKg?: number; opts?: PhysiologyOptions }
 
@@ -58,38 +58,51 @@ describe("library lookups", () => {
   });
 });
 
+// (2623) Water now changes mass each step, so integrate the independently evaluated
+// rate at each starting mass rather than multiplying the initial/final rate by a day.
+function integrateEnergy(x: ReturnType<typeof build>, seconds: number, dt: number, met: number | ((t: number) => number)) {
+  let kcal = 0, lastRmr: number | null = null;
+  for (let t = 0; t < seconds; t += dt) {
+    lastRmr = restingMetabolicRate(x.body);
+    const activity = typeof met === "number" ? met : met(x.w.t);
+    kcal += lastRmr === null ? metabolicHeat(activity, x.body.mass) * dt / KCAL_J : activity * lastRmr * dt / DAY;
+    x.sch.run(x.w, dt, dt);
+  }
+  return { kcal, lastRmr };
+}
+
 describe("energy", () => {
   it("a 70 kg man at rest burns the resting rate the rule gives", () => {
     const x = build({ body: MAN, opts: { met: 1 } });
     const rmr = restingMetabolicRate(x.body)!;
     expect(rmr).toBe(1648.75);
-    x.sch.run(x.w, DAY, 60);
-    expect(x.out.rmr_kcal).toBe(rmr);
+    const expected = integrateEnergy(x, DAY, 60, 1);
+    expect(x.out.rmr_kcal).toBe(expected.lastRmr);
     expect(x.out.rmr_label).toBe("researched");
-    expect(x.body.props.expenditure_kcal).toBeCloseTo(rmr, 6);
+    expect(x.body.props.expenditure_kcal).toBeCloseTo(expected.kcal, 6);
   });
 
   it("costs an activity at its MET times the resting rate", () => {
     const x = build({ body: MAN, opts: { met: metOf("sleeping") } });
-    x.sch.run(x.w, DAY, 60);
-    expect(x.body.props.expenditure_kcal).toBeCloseTo(0.95 * 1648.75, 6);
+    const expected = integrateEnergy(x, DAY, 60, metOf("sleeping"));
+    expect(x.body.props.expenditure_kcal).toBeCloseTo(expected.kcal, 6);
   });
 
   it("falls back to the compendium's 1 kcal per kg per hour with no height, age or sex", () => {
     const x = build({ opts: { met: 3.3 } });
-    x.sch.run(x.w, 3600, 10);
+    const expected = integrateEnergy(x, 3600, 10, 3.3);
     expect(x.out.rmr_kcal).toBeNull();
     expect(x.out.pal).toBeNull();
-    expect(x.body.props.expenditure_kcal).toBeCloseTo(metabolicHeat(3.3, 70) * 3600 / KCAL_J, 9);
+    expect(x.body.props.expenditure_kcal).toBeCloseTo(expected.kcal, 9);
   });
 
-  it("makes the day's PAL the MET-hours over 24, inside the library's band", () => {
+  it("makes the day's PAL expenditure over its closing resting rate, inside the library's band", () => {
     const x = build({ body: MAN, opts: { clockH0: 0, dayStartH: 0, schedule: [
       { fromH: 22, toH: 6, activity: "sleeping", sleepQuality: 1 },
       { fromH: 6, toH: 14, activity: "walking-the-deck-light-chores" },
       { fromH: 14, toH: 22, activity: "cooking-at-the-galley-fire" }] } });
-    days(x, 1, 60);
-    const expected = (8 * 0.95 + 8 * 2.5 + 8 * 3.3) / 24;
+    const energy = integrateEnergy(x, DAY, 60, t => { const h = t / 3600; return h < 6 || h >= 22 ? 0.95 : h < 14 ? 2.5 : 3.3; });
+    const expected = energy.kcal / energy.lastRmr!; // (2623) mass and RMR vary within the day
     expect(x.out.pal).toBeCloseTo(expected, 9);
     expect(x.out.pal as number).toBeGreaterThan(palRange().min);
     expect(x.out.pal as number).toBeLessThan(palRange().max);
@@ -98,7 +111,7 @@ describe("energy", () => {
   it("conserves energy: intake minus heat and work equals what is stored", () => {
     const x = build({ body: { ...MAN, work_w: 50 }, roomC: 30, opts: { met: metOf("smithing") } });
     ingest(x.w, "body", { kcal: 2000 });
-    x.sch.run(x.w, 6 * 3600, 30);
+    const expected = integrateEnergy(x, 6 * 3600, 30, metOf("smithing"));
     const t = x.w.trace;
     const heat = t.transfers.filter(f => f.from === "metabolism" && f.to === "body").reduce((a, f) => a + f.amount, 0);
     const work = t.transfers.filter(f => f.from === "metabolism" && f.to === "work").reduce((a, f) => a + f.amount, 0);
@@ -107,16 +120,22 @@ describe("energy", () => {
     expect(spent).toBeCloseTo(heat + work, 3);
     expect(work).toBeCloseTo(50 * 6 * 3600, 3);
     expect((x.out.energy_balance_kcal as number) * KCAL_J).toBeCloseTo(intake - heat - work, 3);
-    expect(x.out.energy_balance_kcal).toBeCloseTo(2000 - restingMetabolicRate(x.body)! * 6 * 6 / 24, 6);
+    expect(x.out.energy_balance_kcal).toBeCloseTo(2000 - expected.kcal, 6);
   });
 
   it("conserves heat in the body: stored equals heat in minus the air and the sweat taken", () => {
     const x = build({ body: MAN, roomC: 33, wbgt: 30, opts: { met: 4.5 } });
-    const cap = x.w.registry.heatCapacity(x.body), t0 = x.body.temperatureC;
-    x.sch.run(x.w, 3 * 3600, 10);
+    addBodyWater(x.w, "body", 0, "fixture", "initialise water");
+    // (2623) Thermal capacity changes with the water and mass, so sum C*dT per interval.
+    let storedHeat = 0;
+    for (let t = 0; t < 3 * 3600; t += 10) {
+      const cap = x.w.registry.heatCapacity(x.body), t0 = x.body.temperatureC;
+      x.sch.run(x.w, 10, 10);
+      storedHeat += cap * (x.body.temperatureC - t0);
+    }
     const sum = (to: string, from: string) => x.w.trace.transfers.filter(f => f.quantity === "energy" && f.to === to && f.from === from).reduce((a, f) => a + f.amount, 0);
     const net = sum("body", "metabolism") - sum("room", "body") - sum("sweat-latent", "body") - sum("breath-latent", "body");
-    expect(cap * (x.body.temperatureC - t0)).toBeCloseTo(net, 3);
+    expect(storedHeat).toBeCloseTo(net, 3);
   });
 });
 

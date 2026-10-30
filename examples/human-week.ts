@@ -110,6 +110,8 @@ export function runHumanWeek(extend?: (w: World, body: Component, room: Componen
     cursor = world.trace.transfers.length;
     world.trace.check(world.t, 'energy:daily-and-pending', body.props.intake_kcal - body.props.expenditure_kcal,
       (body.props.nut_stored_kcal ?? 0) + pendingKcal, 1e-6);
+    world.trace.check(world.t, 'mass:body:week', FIXTURE.massKg + world.trace.into(body.id, 'mass:body')
+      - world.trace.outOf(body.id, 'mass:body'), body.mass, 1e-6);
     for (const c of [body, room]) {
       if (!Number.isFinite(c.mass) || !Number.isFinite(c.temperatureC)) throw new Error('nonfinite component');
       for (const v of Object.values(bodyOutputs(c))) if (typeof v === 'number' && !Number.isFinite(v)) throw new Error('nonfinite output');

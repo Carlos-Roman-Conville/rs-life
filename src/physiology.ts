@@ -22,6 +22,7 @@ import { C_TO_K, KCAL_J, M, O2_ENERGY_J_PER_L, P_SEA_LEVEL, SWEAT_LATENT, heatFl
 import { libraryMeta, libraryRow, libraryTable, type LibraryRow } from "./library.ts";
 import { accumulateExposure } from "./atmosphere.ts";
 import { trackCrisis } from "./crisis.ts";
+import { bodyMassDelta } from "./nutrition.ts";
 
 export type BodyOutputs = Record<string, number | string | null>;
 
@@ -274,7 +275,44 @@ export interface PhysiologyOptions {
   dayStartH?: number;                  // the hour the day's books close (default 12: the nautical day)
 }
 
-/** Eat or drink in kind: food energy and water enter the body, traced. Water goes into the body's water content when it holds any. */
+/** Establish the reference once, before even a pre-step meal. Initial water is already part of body mass. */
+function initialiseBodyWater(w: World, b: Component) {
+  if (b.props.water_start_kg !== undefined) return;
+  if (!b.contents.some(x => x.substance === "water")) {
+    const id = `physiology.body_water.total-body-water-fraction-${b.props.male === 0 ? "women" : "men"}`;
+    const fraction = libraryRow("physiology", "body_water", id).Value;
+    if (typeof fraction !== "number" || !Number.isFinite(fraction) || fraction <= 0 || fraction > 1) throw new Error(`physiology: missing valid numeric row ${id}`);
+    const kg = fraction * b.mass;
+    w.registry.addContent(b, "water", "liquid", kg);
+    w.trace.record({ t: w.t, process: "realism.physiology.water_balance", quantity: "mass:water", from: "initial-body-water", to: b.id, amount: kg, note: "initial water already included in body mass" });
+  }
+  b.props.water_start_kg = w.registry.contentMass(b, "water");
+  b.props.water_start_mass_kg = b.mass;
+}
+
+/** Derived views only: the fixed reference mass keeps deficit in % of starting body mass. */
+function deriveBodyWater(w: World, b: Component) {
+  b.props.waterDeficitKg = b.props.water_start_kg - w.registry.contentMass(b, "water");
+  b.props.waterDeficitPct = b.props.waterDeficitKg / b.props.water_start_mass_kg * 100;
+  bodyOutputs(b).water_deficit_pct = b.props.waterDeficitPct;
+}
+
+/** Physiology owns registry water; every actual transfer also changes body mass immediately.
+ * `other` names an external source/sink; default is the caller's process (e.g. glycogen storage).
+ */
+export function addBodyWater(w: World, body: string, kg: number, process: string, note: string, other = process) {
+  const b = w.registry.component(body);
+  if (b.kind !== "body" || !Number.isFinite(kg) || !Number.isFinite(b.mass) || b.mass <= 0 || b.mass + kg < 0)
+    throw new Error("physiology: invalid body water delta");
+  initialiseBodyWater(w, b);
+  if (w.registry.contentMass(b, "water", "liquid") + kg < -1e-12) throw new Error("physiology: body water overdraw");
+  w.registry.addContent(b, "water", "liquid", kg);
+  bodyMassDelta(w, body, kg, process, note);
+  w.trace.record({ t: w.t, process, quantity: "mass:water", from: kg >= 0 ? other : body, to: kg >= 0 ? body : other, amount: Math.abs(kg), note });
+  deriveBodyWater(w, b);
+}
+
+/** Eat or drink in kind: water enters the single content ledger, energy enters its intake counter. */
 export function ingest(w: World, body: string, food: { kcal?: number; waterKg?: number }, process = "ingest") {
   const b = w.registry.component(body);
   if (food.kcal) {
@@ -282,10 +320,7 @@ export function ingest(w: World, body: string, food: { kcal?: number; waterKg?: 
     w.trace.record({ t: w.t, process, quantity: "energy:chemical", from: "food", to: body, amount: food.kcal * KCAL_J });
   }
   if (food.waterKg) {
-    b.props.waterDeficitKg = (b.props.waterDeficitKg ?? 0) - food.waterKg;
-    b.props.waterDeficitPct = b.props.waterDeficitKg / b.mass * 100;
-    if (b.contents.some(x => x.substance === "water")) w.registry.addContent(b, "water", "liquid", food.waterKg);
-    w.trace.record({ t: w.t, process, quantity: "mass:water", from: "intake", to: body, amount: food.waterKg });
+    addBodyWater(w, body, food.waterKg, process, "intake", "intake");
   }
 }
 
@@ -316,7 +351,8 @@ export function physiologyProcess(body: string, room: string, o: PhysiologyOptio
   };
   return { name: "body", every: o.every ?? 10, step(w, dt) {
     const b = w.registry.component(body), r = w.registry.component(room), reg = w.registry, p = b.props, t = lib();
-    const mass = b.mass, dtH = dt / 3600;
+    initialiseBodyWater(w, b); deriveBodyWater(w, b);
+    const dtH = dt / 3600;
     const clock = clockH0 + w.t / 3600, hour = ((clock % 24) + 24) % 24;
     p.core_c ??= t.restCoreC;
     p.acclimatisation ??= 1;
@@ -374,16 +410,14 @@ export function physiologyProcess(body: string, room: string, o: PhysiologyOptio
     // urine: the kidney passes the surplus over the body's starting water, between the obligatory and the most dilute volume
     const urineDay = (osm: number) => URINE.soluteMosmDay / osm / 86400 * dt;
     let urineKg = Math.min(urineDay(URINE.minMosmL), Math.max(urineDay(URINE.maxMosmL), metabolicKg - (p.waterDeficitKg ?? 0) - breathKg - diffKg - sweatKg));
-    const held = b.contents.find(x => x.substance === "water" && x.phase === "liquid");
-    if (held) reg.addContent(b, "water", "liquid", metabolicKg);
-    p.waterDeficitKg = (p.waterDeficitKg ?? 0) - metabolicKg;
-    w.trace.record({ t: w.t, process: "body", quantity: "mass:water", from: "oxidation", to: body, amount: metabolicKg, note: "metabolic water" });
+    // Apply the water transfers after the heat calculation, so its interval uses one thermal capacity.
+    const availableKg = reg.contentMass(b, "water", "liquid") + metabolicKg;
     const outKg = breathKg + diffKg + sweatKg + urineKg;
-    if (held && outKg > held.mass) {
-      const s = held.mass / outKg;
+    if (outKg > availableKg) {
+      const s = availableKg / outKg;
       breathKg *= s; diffKg *= s; sweatKg *= s; evapSweatKg *= s; urineKg *= s;
     }
-    const dripKg = sweatKg - evapSweatKg, lostKg = breathKg + diffKg + sweatKg + urineKg;
+    const dripKg = sweatKg - evapSweatKg;
     const sweatLph = sweatKg * 3600 / dt;
     const dryJ = dryHeatW(b, area, b.temperatureC, airC, windMS) * dt, resDryJ = resDryW * dt;
     const skinLatentJ = (diffKg + evapSweatKg) * SWEAT_LATENT, breathLatentJ = breathKg * SWEAT_LATENT;
@@ -392,17 +426,16 @@ export function physiologyProcess(body: string, room: string, o: PhysiologyOptio
     w.trace.record({ t: w.t, process: "body", quantity: "energy", from: body, to: room, amount: resDryJ, note: "breath, dry" });
     w.trace.record({ t: w.t, process: "body", quantity: "energy", from: body, to: "sweat-latent", amount: skinLatentJ });
     w.trace.record({ t: w.t, process: "body", quantity: "energy", from: body, to: "breath-latent", amount: breathLatentJ });
-    p.waterDeficitKg = (p.waterDeficitKg ?? 0) + lostKg;
     p.sweat_kg = (p.sweat_kg ?? 0) + sweatKg;
     p.urine_kg = (p.urine_kg ?? 0) + urineKg;
-    p.waterDeficitPct = p.waterDeficitKg / mass * 100;
-    if (held) reg.addContent(b, "water", "liquid", -lostKg);
     reg.addContent(r, "water", "gas", breathKg + diffKg + evapSweatKg);
-    w.trace.record({ t: w.t, process: "body", quantity: "mass:water", from: body, to: room, amount: evapSweatKg, note: "sweat" });
-    if (dripKg > 0) w.trace.record({ t: w.t, process: "body", quantity: "mass:water", from: body, to: "drip", amount: dripKg, note: "sweat" });
-    w.trace.record({ t: w.t, process: "body", quantity: "mass:water", from: body, to: room, amount: diffKg, note: "skin diffusion" });
-    w.trace.record({ t: w.t, process: "body", quantity: "mass:water", from: body, to: room, amount: breathKg, note: "breath" });
-    w.trace.record({ t: w.t, process: "body", quantity: "mass:water", from: body, to: "urine", amount: urineKg, note: "urine" });
+    const waterProcess = "realism.physiology.water_balance";
+    addBodyWater(w, body, metabolicKg, waterProcess, "metabolic water", "oxidation");
+    addBodyWater(w, body, -evapSweatKg, waterProcess, "sweat", room);
+    if (dripKg > 0) addBodyWater(w, body, -dripKg, waterProcess, "sweat", "drip");
+    addBodyWater(w, body, -diffKg, waterProcess, "skin diffusion", room);
+    addBodyWater(w, body, -breathKg, waterProcess, "breath", room);
+    addBodyWater(w, body, -urineKg, waterProcess, "urine", "urine");
 
     // exposure
     accumulateExposure(b, r, dt);

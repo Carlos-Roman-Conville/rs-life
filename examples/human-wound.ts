@@ -4,7 +4,6 @@
  * followed by rest of the wounded part. These are host circumstances, not rates.
  */
 import { runHumanWeek, FIXTURE } from './human-week.ts';
-import { GLYCOGEN_BOUND_WATER } from '../src/nutrition.ts';
 import { assembleBody, assemblyCirculation, anatomyProcess, type BodyAssembly } from '../src/anatomy.ts';
 import { bodyOutputs, physiologyProcess } from '../src/physiology.ts';
 import { advanceDays, createMedicine, inflictWound, medicineProcess, treat, worldHealingFactors,
@@ -68,12 +67,12 @@ export function runWoundVariant(variant: Variant, seed: number = WOUND_FIXTURE.s
         lastOrganUpdate = world.t + dt;
       }
       // Assembly shells and dimensionless fibres cannot add body mass. The
-      // nutrition's body mass is fat + glycogen with bound water + the water ledger's change at the last closed day.
+      // nutrition's mass change is fat + dry glycogen + the live water ledger (2623), which includes bound water.
       world.trace.check(world.t, 'mass:body-composition-proxy',
-        FIXTURE.massKg + body.props.fat_kg - FIXTURE.fatKg + ((body.props.glycogen_g ?? 400) - 400) / 1000 * (1 + GLYCOGEN_BOUND_WATER)
-          - (body.props.nut_water_mark ?? 0), body.mass, 1e-9);
+        FIXTURE.massKg + body.props.fat_kg - FIXTURE.fatKg + ((body.props.glycogen_g ?? 400) - 400) / 1000
+          - (body.props.waterDeficitKg ?? 0), body.mass, 1e-9);
       world.trace.check(world.t, 'volume:blood:checkpoint', body.props.circulation_initial_ml +
-        body.props.blood_received_ml - body.props.blood_lost_ml, body.props.blood_volume_ml, 1e-6);
+        world.trace.into(body.id, "volume:blood") - world.trace.outOf(body.id, "volume:blood"), body.props.blood_volume_ml, 1e-6);
       if ((world.t + dt) % 86400 === 0) {
         const out = bodyOutputs(body);
         days.push({ day: days.length + 1, variant, outputs: { ...out,

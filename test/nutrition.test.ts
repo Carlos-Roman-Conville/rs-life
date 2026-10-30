@@ -6,7 +6,7 @@ import { KCAL_J } from "../src/physics.ts";
 import { libraryRow, libraryTable } from "../src/library.ts";
 import { bodyOutputs, metOf, physiologyProcess } from "../src/physiology.ts";
 import {
-  GLYCOGEN_BOUND_WATER, absorbedFraction, dailyNeed, deficiencySignals, eat, eatMeal, fatKcalPerKg, foodContent, foodRow, glycogenFactor, nutrientInfo,
+  absorbedFraction, dailyNeed, deficiencySignals, eat, eatMeal, fatKcalPerKg, foodContent, foodRow, glycogenFactor, nutrientInfo,
   nutritionProcess, poolLevel, poolSpec, pooledNutrients, stockPools, type NutritionOptions,
 } from "../src/nutrition.ts";
 
@@ -210,7 +210,8 @@ describe("deficiency", () => {
     const sweaty = build({ withPhysiology: true, body: MAN, met: metOf("smithing") }); // a 22 C rest needs no sweat (ISO 7730 heat balance)
     sweaty.sch.run(sweaty.w, 600, 600);
     sweaty.sch.run(sweaty.w, 5 * HOUR, 600);
-    const traced = sweaty.w.trace.transfers.filter(f => f.note === "sweat").reduce((a, f) => a + f.amount, 0);
+    // (2623) Sweat now also traces mass:body; select the water transfer to count it once.
+    const traced = sweaty.w.trace.transfers.filter(f => f.quantity === "mass:water" && f.note === "sweat").reduce((a, f) => a + f.amount, 0);
     expect(traced).toBeGreaterThan(0.1);
     expect(sweaty.body.props.sweat_kg).toBeCloseTo(traced, 12);          // physiology's running total is the traced sweat
     const dry = build();
@@ -264,7 +265,8 @@ describe("energy and body composition", () => {
     const stored = (p.fat_kg! - 15) * 7700 + (p.glycogen_g! - 400) * 4;
     expect(stored + p.nut_unplaced_kcal!).toBeCloseTo(p.nut_balance_kcal!, 6);
     expect(p.nut_unplaced_kcal).toBeCloseTo(0, 6);
-    expect(x.body.mass).toBeCloseTo(70 + (p.fat_kg! - 15) + (p.glycogen_g! - 400) / 1000 * (1 + GLYCOGEN_BOUND_WATER) - p.nut_water_mark!, 9);
+    // (2623) Bound water is already in the live water deficit; no daily water mark.
+    expect(x.body.mass).toBeCloseTo(70 + (p.fat_kg! - 15) + (p.glycogen_g! - 400) / 1000 - p.waterDeficitKg!, 9);
   });
 
   it("a surplus is stored as fat by balance / 7700 once glycogen is full", () => {

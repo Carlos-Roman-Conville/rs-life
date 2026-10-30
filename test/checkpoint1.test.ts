@@ -40,10 +40,10 @@ describe('checkpoint 1: an integrated human week', () => {
       expect(d.waterKg).toBeCloseTo(water, 8);
       expect(d.waterDeficitKg).toBeCloseTo(FIXTURE.waterKg - water, 8);
       balance += d.kcalIn - d.kcalOut;
-      // mass = fat + glycogen with its bound water + the water ledger's change
+      // Mass change = fat + dry glycogen + the water ledger's change.
       const glycogenKg = (Number(d.outputs.glycogen_g) - initialGlycogen) / 1000, fatKg = (balance - (Number(d.outputs.glycogen_g) - initialGlycogen) * glyEnergy) / fatDensity;
-      const boundWaterKg = glycogenKg * GLYCOGEN_BOUND_WATER;
-      expect(d.massKg - FIXTURE.massKg).toBeCloseTo(fatKg + glycogenKg + boundWaterKg - d.waterDeficitKg, 8);
+      // (2623) Bound water is included in the single water ledger, so count it once.
+      expect(d.massKg - FIXTURE.massKg).toBeCloseTo(fatKg + glycogenKg - d.waterDeficitKg, 8);
       expect(d.outputs.water_change_kg).toBeTypeOf('number');
       debt += need - ((FIXTURE.watchDays as readonly number[]).includes(d.day) ? 4 : 6);
       expect(d.outputs.sleep_debt).toBeCloseTo(debt, 9);
@@ -95,7 +95,7 @@ describe('checkpoint 1: an integrated human week', () => {
     expect(lostG).toBeGreaterThan(0);
     // bound water leaves with the glycogen: the day's mass loss is fat + glycogen + its bound water
     const fatLost = 15 - body.props.fat_kg!;
-    expect(70 - body.mass).toBeCloseTo(fatLost + lostG / 1000 * (1 + GLYCOGEN_BOUND_WATER), 9);
+    expect(70 - body.mass).toBeCloseTo(fatLost + lostG / 1000 * (1 + (GLYCOGEN_BOUND_WATER ?? 0)), 9);
     expect(w.trace.failed()).toEqual([]);
   });
 

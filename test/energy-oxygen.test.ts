@@ -6,7 +6,7 @@ import { defaultRegistry, type Component } from '../src/registry.ts';
 import { airContents, bodyGasFlows, breathingProcess, litresToKg, respiratoryStateFromVo2 } from '../src/atmosphere.ts';
 import { bodyOutputs, metabolicRateW, oxygenLitresPerMin, physiologyProcess } from '../src/physiology.ts';
 import { KCAL_J, O2_ENERGY_J_PER_L, P_SEA_LEVEL, MMHG_PER_PA } from '../src/physics.ts';
-import { horseRows, runHorseStable } from '../examples/horse-stable.ts';
+import { horseRows, runHorseStable, STABLE } from '../examples/horse-stable.ts';
 
 const component = (id: string, kind: string): Component => ({ id, kind, material: kind === 'body' ? 'flesh' : 'air_mass',
   mass: 55, temperatureC: 20, contents: [], ports: [], condition: { capability: 1, control: 1, accuracy: 1 }, props: {} });
@@ -69,7 +69,13 @@ it('closes the stable horse hour of energy and gas/element ledgers', () => {
   // Temperature varies: recover each transfer's litres using a parallel one-step audit below.
   expect(w.trace.failed()).toEqual([]);
   const energy = w.trace.outOf('horse', 'energy:chemical');
-  expect(energy).toBeCloseTo(horseRows().rmrKcalDay * KCAL_J / 24, 6);
+  // (2623) Water now changes mass within the hour; integrate Kleiber at each starting mass.
+  let mass = STABLE.massKg as number, expectedEnergy = 0;
+  for (const transfer of w.trace.transfers) {
+    if (transfer.quantity === 'mass:body') mass += (transfer.to === 'horse' ? 1 : -1) * transfer.amount;
+    if (transfer.quantity === 'energy:chemical' && transfer.from === 'horse') expectedEnergy += 70 * mass ** 0.75 * KCAL_J * STABLE.stepS / 86400;
+  }
+  expect(energy).toBeCloseTo(expectedEnergy, 6);
   const run = runHorseStable(0), { body, room, sch } = run;
   let litres = 0, co2 = 0;
   sch.add({ name: 'oxygen-audit', every: 1, step(world) {
