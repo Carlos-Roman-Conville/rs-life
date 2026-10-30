@@ -2,7 +2,7 @@
 
 Rex widened the Reality & Species engine on 2026-10-30 (his words plus a ChatGPT paste he agrees with; the table
 is in `Toolchain/ENGINES.md`, "Scope added 2026-10-30"): mechanics, optics, fluid dynamics, materials, the full
-lifecycle from digestion to decomposition, and genes and ageing acting through organ capacity. Two rules of his
+lifecycle from digestion to decomposition, and genetics, cellular state and ageing acting through organ capacity. Two rules of his
 apply to every phase below, on top of the eight in `PHASES-4-5.md`:
 
 - **Real-world data first (Rex, 2026-10-30).** Every value is filled from historical or measured data and
@@ -38,7 +38,7 @@ when the previous phase finishes. Every phase is accepted on the human first and
 6 mechanics ──┬─ 7 fluids ──────────────┐
               └─ 9 materials            │
 10 metabolism as flux ─┬─ 11 waste, sanitation, decomposition ─┤  (11 also reads 7 for water, 9 for decay)
-                       └─ 12 genes and ageing                   │
+                       └─ 12 genetics, cellular state and ageing │
 8 optics (independent; reads 9 for albedo when 9 exists) ───────┘
 13 weather and climate (reads 7 for evaporation and flow, 8 for solar geometry; replaces the pirate Markov chain)
 ```
@@ -151,20 +151,52 @@ place; a fouled well raises the waterborne exposure rows by the cited relation a
 buried body loses mass over cited stages with the ledger closing to soil, water and gas; sweat, urine and faeces
 appear in the body's water and nutrient ledgers.
 
-## Phase 12: genes and ageing through organ capacity (needs 10; reads anatomy, neurology)
+## Phase 12: genetics, cellular state and ageing (needs 10; reads anatomy, muscular, neurology, medicine)
 
-**Scope.** A genotype as a set of cited variants acting on named parameters: enzyme activity (alcohol
-dehydrogenase and aldehyde dehydrogenase variants in the neurology `pk`, lactase persistence in absorption),
-organ capacity (VO₂max ceiling through circulation and muscular), regulation set points. Ageing as cited
-time-dependent decline of those same capacities. Never a global modifier: no "age penalty" and no "talent"
-scalar in `src/`. Inheritance between parents is configuration; evolution is out of scope (Rex).
-**Exists.** `physiology.json` `ageing`; `anatomy.json` organs with capacity slots; `neurology.json` `pk`;
-`population.json` cohorts.
-**Missing.** A variants table (opened sources), parameter hooks on each module, ageing curves per capacity,
-the organism framework's species file carrying them so a horse's are configuration.
-**Acceptance.** Two humans differing only in a cited enzyme variant clear alcohol at the cited rates through the
-existing pk model; a 70-year-old and a 25-year-old differ in work capacity only through the cited VO₂max and
-muscle-mass declines; `grep` finds no age or talent scalar applied outside a capacity.
+**Resolution (Rex, 2026-10-30; `Toolchain/ENGINES.md`, "Resolution of the biology").** Cells and DNA are compact
+mathematical representations that keep their causal effects, never their real form. Each organism has three separate
+records, and a character sheet (`STATS.md`) is a view of them, never a second source of numbers:
+1. **Genetic profile** (stable): chromosome segments carrying trait-associated variants, with linkage, polygenic
+   effects, dominance and interactions. Never trait sliders and never an average of the parents. Inheritance is
+   recombination of segments (configuration of the cross); evolution stays out of scope.
+2. **Cellular and developmental state**, per representative tissue population (muscle, bone, liver, vessel wall,
+   neurons, skin, blood-forming tissue): repair capacity, accumulated damage `D(t+1) = D(t) + damage - repair`,
+   regeneration and adaptation. Damage comes from the existing modules' insults (anatomy's organ insults, wounds,
+   alcohol through neurology's pk, heat, starvation, infection); repair capacity is set by the genetic profile and
+   by the state itself.
+3. **Organism state**: what realism already models (anatomy, organs, muscles, nutrient pools, immunity, capacities).
+   Organ and muscle capacity are read from the tissue states, so ageing emerges from accumulated damage and falling
+   repair, never from a birthday subtraction or an age scalar.
+
+**Growth as a mechanism, not a stat.** A trait like muscular growth is `dM = f(G, T, N, H, R)`: genetics, training
+stimulus (muscular's tension and aerobic signals), nutrition (protein and energy gates), hormones and development,
+and recovery (sleep, the conversion window). Nobody inherits a Strength score.
+
+**Resolution by distance.** Named characters carry tissue-level state; distant populations carry aggregate genetic
+and health distributions (population cohorts), with the aggregation interface documented and tested as in P1
+refinement B (the aggregate refines, never contradicts).
+
+**Exists.** `physiology.json` `ageing` (a birthday-indexed curve, to become a check against the emergent decline, not a
+driver); `anatomy.json` organs with damage, repair and capacity slots; `muscular.ts` adaptation with an age gate;
+`neurology.json` `pk`; `population.json` cohorts.
+**Missing.** The three records as data and code (`src/genetics.ts`, `src/tissue.ts`); a variants table from opened
+sources (for example alcohol and aldehyde dehydrogenase variants, lactase persistence, ACTN3); per-tissue damage and
+repair rates from opened sources, `null` and flagged where none is opened (the ageing rates are a named hypothesis
+where the science is thin, tested by its consequences); the muscular growth function reading the five inputs; the
+species file carrying a horse's tissues by configuration.
+**Acceptance (Rex's executable demonstration: an organism ageing under different conditions).** One human genome
+lived three ways from age 20 to 70 (sedentary, hard labour, heavy drinking) gives three different trajectories of
+tissue damage, organ capacity and work capacity, each emerging from the tissue states. The emergent declines fall
+inside the cited population ranges of the `ageing` table, and the drinker's liver capacity falls fastest. Two humans
+differing only in one cited enzyme variant clear alcohol at the cited rates through the existing pk. Two siblings from
+one cross differ by recombination, not by averaging. `grep` finds no age or talent scalar in `src/` acting outside a
+tissue state.
+**Where it meets P1 (DUP-17, batch 2).** DUP-17 is age effects in four unlinked places (the physiology ageing table
+no code reads, medicine's healing by age, muscular's age gate, neurology's dopamine decline) plus the game's ageing.
+Its planned owner is this phase. Closing it in P1 names one interim owner that the four effects read, without adding a
+birthday-driven curve as a new authority: the interim reads stay labelled interim and are replaced, read for read, by
+the tissue states when this phase lands. The P1 closure test is therefore "one owner, four reads, no fifth age
+effect"; this phase's test is the demonstration above.
 
 ## Phase 13: weather and climate (needs 7 and 8's solar geometry; a major P2 subsystem, Rex 2026-10-30)
 
@@ -195,7 +227,7 @@ configuration; `grep` finds no transition matrix or state table in `src/`.
    management, water); it closes the body's ledgers to the place.
 4. **7 fluids** and **9 materials**: both need 6 only; 11's water and decay read them, so they come before 11 if
    Rex prefers completeness over the Settlement asks.
-5. **12 genes and ageing**: needs 10 and the organism framework; the bestiary keeper's species content lands here.
+5. **12 genetics, cellular state and ageing**: needs 10 and the organism framework; the bestiary keeper's species content lands here.
 6. **8 optics**: independent and self-contained, unless combat's visibility rules need it sooner.
 7. **13 weather and climate**: after 7 (evaporation, flow) and 8's solar geometry; the pirate plugin's Markov
    chain keeps running until this phase's acceptance test passes, then becomes a read.
