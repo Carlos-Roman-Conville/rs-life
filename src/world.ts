@@ -16,6 +16,11 @@ export class World {
   env: Record<string, number> = {};
   constructor(registry: Registry) { this.registry = registry; }
 
+  /** Detached ledger view for comparison; changing it cannot change the world's tallies or cursors. */
+  ledgerState() {
+    return structuredClone({ conserved: this.conserved, cursor: this.cursor, elements: this.elements });
+  }
+
   /** Total mass of a substance (all phases) across components. */
   massOf(substance: string, components: string[]): number {
     let m = 0;

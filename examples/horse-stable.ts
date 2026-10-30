@@ -30,7 +30,7 @@ export function horseRows() {
     bloodMl: profile.bloodMlKg * STABLE.massKg };
 }
 
-export function runHorseStable() {
+export function runHorseStable(durationDays: number = STABLE.days) {
   const started = performance.now(), w = new World(defaultRegistry()), sch = new Scheduler();
   const { profile, rmrKcalDay, heartOutputLMin } = horseRows();
   const body = component('horse', 'body', STABLE.massKg, profile.temperatureC);
@@ -99,10 +99,10 @@ export function runHorseStable() {
       energyIn = energyOut = waterIn = waterOut = peak = metHours = 0;
     }
   } });
-  sch.run(w, STABLE.days * 86400, STABLE.stepS);
+  sch.run(w, durationDays * 86400, STABLE.stepS);
   if (w.trace.failed().length) throw new Error(w.trace.notes.filter(n => n.text.startsWith('CONSERVATION FAILED')).slice(0, 3).map(n => n.text).join('\n'));
   const restingVentilation = respiratoryState({ pressureMmHg: P_SEA_LEVEL * 0.00750062, o2Frac: 0.2095, co2Frac: 0.0004, coPpm: 0 }, 1, STABLE.massKg, standIn).ventilationLMin;
-  return { w, body, room, assembly, days, restingVentilation, elapsedMs: performance.now() - started };
+  return { w, sch, body, room, assembly, days, restingVentilation, elapsedMs: performance.now() - started };
 }
 
 if ((import.meta as ImportMeta & { main?: boolean }).main) {
