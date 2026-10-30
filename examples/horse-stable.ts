@@ -30,7 +30,12 @@ export function horseRows() {
     bloodMl: profile.bloodMlKg * STABLE.massKg };
 }
 
-export function runHorseStable(durationDays: number = STABLE.days) {
+export function runHorseStable(durationDays: number = STABLE.days, options: { stepS?: number; compactEveryS?: number } = {}) {
+  const stepS = options.stepS ?? STABLE.stepS;
+  if (!(stepS > 0) || !Number.isFinite(stepS)) throw new Error('stepS must be finite and positive');
+  if (options.compactEveryS !== undefined && (!(options.compactEveryS > 0) || !Number.isInteger(options.compactEveryS / stepS))) {
+    throw new Error('compactEveryS must be a positive multiple of stepS');
+  }
   const started = performance.now(), w = new World(defaultRegistry()), sch = new Scheduler();
   const { profile, rmrKcalDay, heartOutputLMin } = horseRows();
   const body = component('horse', 'body', STABLE.massKg, profile.temperatureC);
@@ -99,7 +104,14 @@ export function runHorseStable(durationDays: number = STABLE.days) {
       energyIn = energyOut = waterIn = waterOut = peak = metHours = 0;
     }
   } });
-  sch.run(w, durationDays * 86400, STABLE.stepS);
+  if (options.compactEveryS === undefined) sch.run(w, durationDays * 86400, stepS);
+  else {
+    for (let i = 0; i < Math.round(durationDays * 86400 / stepS); i++) {
+      sch.stepOnce(w, stepS);
+      // The audit and both World ledgers have consumed this step; move the audit's cursor too.
+      if (sch.stepCount % (options.compactEveryS / stepS) === 0) cursor -= w.trace.compact(w.t);
+    }
+  }
   if (w.trace.failed().length) throw new Error(w.trace.notes.filter(n => n.text.startsWith('CONSERVATION FAILED')).slice(0, 3).map(n => n.text).join('\n'));
   const restingVentilation = respiratoryState({ pressureMmHg: P_SEA_LEVEL * 0.00750062, o2Frac: 0.2095, co2Frac: 0.0004, coPpm: 0 }, 1, STABLE.massKg, standIn).ventilationLMin;
   return { w, sch, body, room, assembly, days, restingVentilation, elapsedMs: performance.now() - started };

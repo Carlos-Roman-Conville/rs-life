@@ -8,7 +8,7 @@ export class World {
   t = 0; // seconds
   registry: Registry;
   graph = new Graph();
-  trace = new Trace();
+  trace = new Trace(count => this.moveTraceCursors(count));
   /** Quantities whose total across named components must stay constant (plus recorded flows out of the system). */
   conserved: { quantity: string; substance?: string; components: string[]; initial: number; tolerance: number; entered: number; left: number }[] = [];
   private cursor = 0; // the first transfer not yet folded into the conserved tallies
@@ -19,6 +19,15 @@ export class World {
   /** Detached ledger view for comparison; changing it cannot change the world's tallies or cursors. */
   ledgerState() {
     return structuredClone({ conserved: this.conserved, cursor: this.cursor, elements: this.elements });
+  }
+
+  /** Validate every ledger consumer before moving any cursor for a trace head removal. */
+  private moveTraceCursors(count: number) {
+    if (this.cursor < count || this.elements.some(c => c.cursor < count)) {
+      throw new Error("trace.compact requires afterStep to consume the removed transfers");
+    }
+    this.cursor -= count;
+    for (const c of this.elements) c.cursor -= count;
   }
 
   /** Total mass of a substance (all phases) across components. */

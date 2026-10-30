@@ -10,6 +10,11 @@ export interface Transfer { t: number; process: string; quantity: string; from: 
 export interface Check { t: number; quantity: string; expected: number; actual: number; tolerance: number; ok: boolean }
 
 export class Trace {
+  #beforeCompact?: (count: number) => void;
+  constructor(beforeCompact?: (count: number) => void) {
+    // The owner hook is wiring, not trace data (keep structural trace comparisons unchanged).
+    this.#beforeCompact = beforeCompact;
+  }
   transfers: Transfer[] = [];
   checks: Check[] = [];
   notes: { t: number; text: string }[] = [];
@@ -24,6 +29,21 @@ export class Trace {
     return ok;
   }
   failed() { return this.checks.filter(c => !c.ok); }
+  /** Drop the chronological prefix strictly before horizonT, preserving all-time into/outOf sums.
+   * World-owned traces require those transfers to have passed afterStep first. Other consumers must
+   * subtract the returned count from their own cursors. Checks, notes and crises are never removed.
+   */
+  compact(horizonT: number): number {
+    let count = 0;
+    while (count < this.transfers.length && this.transfers[count].t < horizonT) count++;
+    if (!count) return 0;
+    this.#beforeCompact?.(count);
+    // Fold the retained tail too: folded must describe the entire remaining array after the splice.
+    this.fold();
+    this.transfers.splice(0, count);
+    this.folded = this.transfers.length;
+    return count;
+  }
   /** Sum of a quantity moved into a component by all processes. */
   into(component: string, quantity: string) { this.fold(); return this.inSums.get(`${component}\0${quantity}`) ?? 0; }
   outOf(component: string, quantity: string) { this.fold(); return this.outSums.get(`${component}\0${quantity}`) ?? 0; }
