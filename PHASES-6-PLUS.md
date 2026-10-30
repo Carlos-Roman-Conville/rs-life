@@ -2,7 +2,7 @@
 
 Rex widened the Reality & Species engine on 2026-10-30 (his words plus a ChatGPT paste he agrees with; the table
 is in `Toolchain/ENGINES.md`, "Scope added 2026-10-30"): mechanics, optics, fluid dynamics, materials, the full
-lifecycle from digestion to decomposition, and genetics, cellular state and ageing acting through organ capacity. Two rules of his
+lifecycle from digestion to decomposition, and genetics, cellular state and ageing. Two rules of his
 apply to every phase below, on top of the eight in `PHASES-4-5.md`:
 
 - **Real-world data first (Rex, 2026-10-30).** Every value is filled from historical or measured data and
@@ -38,7 +38,7 @@ when the previous phase finishes. Every phase is accepted on the human first and
 6 mechanics ──┬─ 7 fluids ──────────────┐
               └─ 9 materials            │
 10 metabolism as flux ─┬─ 11 waste, sanitation, decomposition ─┤  (11 also reads 7 for water, 9 for decay)
-                       └─ 12 genetics, cellular state and ageing │
+                       └─ 12 genetics, cellular state and ageing│
 8 optics (independent; reads 9 for albedo when 9 exists) ───────┘
 13 weather and climate (reads 7 for evaporation and flow, 8 for solar geometry; replaces the pirate Markov chain)
 ```
