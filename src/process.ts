@@ -10,11 +10,8 @@ import { CP, R_GAS, counterflowEffectiveness, condenserWaterCoefficient, surface
 
 export { roomGasFraction };
 
-/** A seeded random for reproducible control noise and measurement noise (mulberry32). */
-export function rng(seed: number) {
-  let a = seed >>> 0;
-  return () => { a += 0x6D2B79F5; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-}
+/** A seeded random for reproducible control noise and measurement noise (mulberry32), from the kernel. */
+export { rng } from "@rex/kernel";
 
 /**
  * Operator control: the fuel feed oscillates around the target with an amplitude set by skill (0 to 100). Skill never
