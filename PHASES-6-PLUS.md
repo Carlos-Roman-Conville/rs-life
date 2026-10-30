@@ -81,14 +81,45 @@ formula:
 | `mechanics.strike_time` per arm and strike | s | the swing of the arm-and-item chain: segment and item mass, inertia and lengths, driven by the limb's force available today (muscular) | phase 6 articulated chain; muscular force per limb |
 | `mechanics.ground_speed` | m/s | gait from leg length and mass (a cited walk and run relation, Froude-number scaling where the source gives it), on the current footing's friction | phase 6 contact and locomotion; phase 9 surfaces |
 | `neurology.reaction_latency` per limb | s | a cited human simple and choice reaction time, raised by alertness, fatigue and drink; neurology owns it, not mechanics | neurology; the mapping from the STATS Reflexes attribute to latency is the game's (Rex) |
+| `mechanics.contact_event` per contact | the contact point on the weapon or limb (distance along it, m: tip, middle, base, knuckles), the body part and point reached, relative velocity (m/s), direction, duration (s), impulse (N s), energy transferred (J), penetration depth (m, a range), weapon-on-weapon contacts, and the outcome class (miss, graze, clothing, shallow skin, substantial, armour deflection) read from medicine's wound rows | phase 6b's continuous collision over the turn interval | phase 6b; materials report deformation and penetration, anatomy and medicine the wound |
 
 Combat owns every rule that uses them: who lands first, the Intuition/Ti dodge, the steady-ground bonus and the
-off-balance debuff, and the sub-cubes per turn. A value whose source is not opened is `null` and flagged, as everywhere.
+off-balance debuff, and the sub-cubes per turn; combat reads the contact event, never a damage number. A value whose source is not opened is `null` and flagged, as everywhere.
 
 **Validation (PLATFORM.md 11a).** Independent data: standing ground-reaction force equals body weight on
 force-plate records; walking and running speeds against measured gait norms (for example Bohannon 2011) and Froude
 scaling across leg lengths (Alexander 1989), so the horse checks against the human with no new constant. Integration:
 mechanics with muscular (force available today) and physiology (the energy of work).
+
+## Phase 6b: contact and impact mechanics (needs 6; reads 9, anatomy, medicine) (Rex, 2026-10-30)
+
+**Scope.** A reusable subsystem that answers how much of a moving body or held object reaches another, for a sword's
+tip or middle, a punch's knuckles or a graze, a fall, a construction accident, an animal's bite or a machine. Never a
+weapon damage formula. (1) Rigid-body geometry and articulated limbs from phase 6: segment lengths and joints,
+weapon length, stance and trajectory. (2) Continuous collision detection over the simultaneous-turn interval, so a
+fast strike never tunnels through a target and a dodging defender gives a continuous result: miss, graze, shallow
+contact, full contact or deflection. (3) Per-point velocity along a rotating limb or blade, v = omega x r, the
+effective mass at the contact point, and edge alignment. (4) Impact impulse and energy, E = 1/2 m_eff v_rel^2.
+(5) A simplified penetration model: the energy dissipated against a resistance profile F_resist(x) up to a depth d,
+with materials (phase 9) owning deformation and the tissues owning their response.
+**Input from the host (CMB-14).** Each strike enters as an intended target point and trajectory plus a precision term:
+the spread of the actual trajectory around the intended one (m at the target, or rad), from which the contact point
+follows. How attacker skill sets that spread (Swordsmanship finding weak points, Spatial Reasoning as aim) is combat's
+rule and Rex's to decide; the engine takes the spread as an input and adds no skill formula.
+**Layers.** Physics reports a contact event (position, relative velocity, direction, duration, impulse); materials
+report deformation and a penetration estimate; anatomy and medicine turn that into tissue damage, wound geometry,
+bleeding and loss of function. Combat reads the contact event and the wound, never a damage number.
+**Exists.** Nothing mechanical (phase 6 is unbuilt); medicine's wounds and circulation's bleeding take a wound as input.
+**Missing.** `src/contact.ts`; resistance profiles of skin, muscle, bone, cloth and leather from opened sources (null
+and flagged where none opens); the wound-from-contact mapping in medicine.
+**Acceptance (validation scenarios, Rex).** A sword contacting at different blade positions gives tip and middle
+contacts with the energies v = omega x r predicts; a punch at different angles gives the impulse its effective mass and
+angle predict; a moving defender produces a graze, not a full hit, for the same swing; wound depth is reported as a
+range with its uncertainty, since tissue models need empirical calibration.
+**Validation (PLATFORM.md 11a).** Impact force and impulse against measured strike data (punch force by instrumented
+targets, cutting tests on tissue simulants), penetration against ballistic gelatin and tissue studies; each a cited
+range, never a fitted constant. Integration: contact with mechanics (the swing), materials (the blade and the armour),
+anatomy and medicine (the wound), circulation (the bleeding).
 
 ## Phase 7: fluid dynamics (needs 6)
 
@@ -264,7 +295,7 @@ or an architectural assumption is recorded and reviewed before it becomes author
 
 ## Proposed build order (for Rex to pick; mechanics first as he set)
 
-1. **6 mechanics**: the foundation Rex named first; everything physical hangs on it.
+1. **6 mechanics**: the foundation Rex named first; everything physical hangs on it, then 6b contact and impact (it needs 6's bodies and joints, and reads 9's materials when they exist).
 2. **10 metabolism as flux**: the largest correction to modules that already run, and 11 and 12 depend on it;
    doing it early keeps the checkpoints from drifting twice.
 3. **11 waste, sanitation, decomposition**: Settlement and Economy have asks waiting on it (cemeteries, waste
