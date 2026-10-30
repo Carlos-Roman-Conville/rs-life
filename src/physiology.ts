@@ -227,13 +227,13 @@ export function palRange() { return { min: lib().palMin, max: lib().palMax }; }
  * Power-law coefficients come from the species cell, including the Kleiber horse example.
  * Explicit host overrides require an estimate or fiction label.
  */
-export function restingMetabolicRate(body: Pick<Component, "mass" | "props">, rmrFormula?: string): number | null {
-  const override = body.props.rmr_override_kcal_day;
-  if (override !== undefined) {
-    const label = (body.props as unknown as { rmr_override_label?: string }).rmr_override_label;
-    if (label !== "estimate" && label !== "fiction")
+export interface RmrOverride { kcalDay: number; label: "estimate" | "fiction" }
+
+export function restingMetabolicRate(body: Pick<Component, "mass" | "props">, rmrFormula?: string, rmrOverride?: RmrOverride): number | null {
+  if (rmrOverride !== undefined) {
+    if (rmrOverride.label !== "estimate" && rmrOverride.label !== "fiction")
       throw new Error("physiology: rmr_override_label must be estimate or fiction");
-    return override;
+    return rmrOverride.kcalDay;
   }
   const formula = rmrFormula ?? String(libraryRow("anatomy", "species", "anatomy.species.rmr-formula")["Human default"]);
   if (formula === "Mifflin-St Jeor (PHYSIOLOGY)") {
@@ -254,6 +254,7 @@ export interface ScheduleEntry {
 
 export interface PhysiologyOptions {
   rmrFormula?: string;                 // species RMR-formula cell; defaults to the human column
+  rmrOverride?: RmrOverride;           // host-set resting rate, labelled estimate or fiction
   met?: number;                        // constant MET when there is no schedule (or no window matches)
   schedule?: ScheduleEntry[];          // first matching window wins
   every?: number;                      // run every N fast steps (default 10)
@@ -307,7 +308,7 @@ export function physiologyProcess(body: string, room: string, o: PhysiologyOptio
     const clock = clockH0 + w.t / 3600, hour = ((clock % 24) + 24) % 24;
     p.core_c ??= t.restCoreC;
     p.acclimatisation ??= 1;
-    const rmr = restingMetabolicRate(b, o.rmrFormula);
+    const rmr = restingMetabolicRate(b, o.rmrFormula, o.rmrOverride);
     const dayIndex = Math.floor((clock - dayStartH) / 24);
     if (p.day_index === undefined) p.day_index = dayIndex;
 
@@ -405,8 +406,7 @@ export function physiologyProcess(body: string, room: string, o: PhysiologyOptio
     p.intake_kcal ??= 0;
     out.met = met;
     out.rmr_kcal = rmr;
-    out.rmr_label = p.rmr_override_kcal_day !== undefined
-      ? (p as unknown as { rmr_override_label: string }).rmr_override_label : rmr === null ? null : "researched";
+    out.rmr_label = o.rmrOverride !== undefined ? o.rmrOverride.label : rmr === null ? null : "researched";
     out.energy_balance_kcal = p.intake_kcal - p.expenditure_kcal;
     out.energy_expenditure_kcal = p.expenditure_kcal;
     out.day_expenditure_kcal = p.day_expenditure_kcal;

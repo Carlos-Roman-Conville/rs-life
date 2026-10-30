@@ -249,14 +249,12 @@ describe("water", () => {
 
 describe("RMR ownership and overrides", () => {
   it.each([undefined, "researched", "unknown"])("rejects override label %s", label => {
-    const x = build({ body: { ...MAN, rmr_override_kcal_day: 1800 }, opts: { met: 1 } });
-    Object.assign(x.body.props, { rmr_override_label: label });
+    const x = build({ body: MAN, opts: { met: 1, rmrOverride: { kcalDay: 1800, label: label as "estimate" } } });
     expect(() => x.sch.run(x.w, 1, 1)).toThrow("rmr_override_label");
   });
 
   it.each(["estimate", "fiction"])("publishes a labelled %s override", label => {
-    const x = build({ body: { rmr_override_kcal_day: 1800 }, opts: { met: 1 } });
-    Object.assign(x.body.props, { rmr_override_label: label });
+    const x = build({ body: {}, opts: { met: 1, rmrOverride: { kcalDay: 1800, label: label as "estimate" } } });
     x.sch.run(x.w, 3600, 60);
     expect(x.out.rmr_kcal).toBe(1800);
     expect(x.out.rmr_label).toBe(label);
