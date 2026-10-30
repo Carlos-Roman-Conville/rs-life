@@ -129,7 +129,7 @@
     "title": "Total body water as a fraction of body mass (adults)",
     "kind": "science",
     "conf": "medium",
-    "source": "Watson, Watson and Batt 1980 (Am J Clin Nutr 33(1):27-39), as quoted on https://en.wikipedia.org/wiki/Body_water (opened 2026-10-30): water fraction by weight 58 +/- 8% for males and 48 +/- 6% for females. The PubMed abstract (https://pubmed.ncbi.nlm.nih.gov/6986753/) gives only the prediction equations, so the means are read from the Wikipedia page, not the paper. PHY-WATER",
+    "source": "Watson, Watson and Batt 1980 (Am J Clin Nutr 33(1):27-39), as quoted on https://en.wikipedia.org/wiki/Body_water (opened 2026-10-30): water fraction by weight 58 +/- 8% for males and 48 +/- 6% for females. The PubMed abstract (https://pubmed.ncbi.nlm.nih.gov/6986753/) gives only the prediction equations, so the means are read from the Wikipedia page, not the paper. (2643) searched: the paper full text (academic.oup.com/ajcn, 404), ICRP Publication 89 (search only, no table opened), PubMed and NCBI (browser check); no opened page gives other values, so 0.58 and 0.48 stay. PHY-WATER",
     "columns": ["id", "Quantity", "Value", "Unit", "Mark", "source"],
     "rows": [
       ["physiology.body_water.total-body-water-fraction-men", "Total body water, men", 0.58, "fraction of body mass", "researched (Watson 1980 via https://en.wikipedia.org/wiki/Body_water; mean, sd 0.08)", "open"],
