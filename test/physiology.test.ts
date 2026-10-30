@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { World } from "../src/world.ts";
 import { Scheduler } from "../src/scheduler.ts";
 import { defaultRegistry, type Component } from "../src/registry.ts";
-import { KCAL_J, metabolicHeat, restingMetabolicRate } from "../src/physics.ts";
+import { KCAL_J, metabolicHeat } from "../src/physics.ts";
 import { libraryRow } from "../src/library.ts";
-import { bodyOutputs, circadianRow, coreRow, hydrationRow, ingest, metOf, overnight, palRange, physiologyProcess, sleepDebtRow, splitSleepQuality, wbgtCeiling, wbgtClass, type PhysiologyOptions } from "../src/physiology.ts";
+import { restingMetabolicRate, bodyOutputs, circadianRow, coreRow, hydrationRow, ingest, metOf, overnight, palRange, physiologyProcess, sleepDebtRow, splitSleepQuality, wbgtCeiling, wbgtClass, type PhysiologyOptions } from "../src/physiology.ts";
 
 interface Setup { roomC?: number; wbgt?: number; body?: Record<string, number>; waterKg?: number; opts?: PhysiologyOptions }
 
@@ -61,10 +61,11 @@ describe("library lookups", () => {
 describe("energy", () => {
   it("a 70 kg man at rest burns the resting rate the rule gives", () => {
     const x = build({ body: MAN, opts: { met: 1 } });
-    const rmr = restingMetabolicRate(70, 175, 30, true);
+    const rmr = restingMetabolicRate(x.body)!;
     expect(rmr).toBe(1648.75);
     x.sch.run(x.w, DAY, 60);
     expect(x.out.rmr_kcal).toBe(rmr);
+    expect(x.out.rmr_label).toBe("researched");
     expect(x.body.props.expenditure_kcal).toBeCloseTo(rmr, 6);
   });
 
@@ -106,7 +107,7 @@ describe("energy", () => {
     expect(spent).toBeCloseTo(heat + work, 3);
     expect(work).toBeCloseTo(50 * 6 * 3600, 3);
     expect((x.out.energy_balance_kcal as number) * KCAL_J).toBeCloseTo(intake - heat - work, 3);
-    expect(x.out.energy_balance_kcal).toBeCloseTo(2000 - restingMetabolicRate(70, 175, 30, true) * 6 * 6 / 24, 6);
+    expect(x.out.energy_balance_kcal).toBeCloseTo(2000 - restingMetabolicRate(x.body)! * 6 * 6 / 24, 6);
   });
 
   it("conserves heat in the body: stored equals heat in minus the air and the sweat taken", () => {
@@ -242,5 +243,43 @@ describe("water", () => {
     x.sch.run(x.w, 3600, 10);
     expect(x.w.registry.contentMass(x.body, "water")).toBeCloseTo(0, 12);
     expect(x.w.trace.failed()).toEqual([]);
+  });
+});
+
+
+describe("RMR ownership and overrides", () => {
+  it.each([undefined, "researched", "unknown"])("rejects override label %s", label => {
+    const x = build({ body: { ...MAN, rmr_override_kcal_day: 1800 }, opts: { met: 1 } });
+    Object.assign(x.body.props, { rmr_override_label: label });
+    expect(() => x.sch.run(x.w, 1, 1)).toThrow("rmr_override_label");
+  });
+
+  it.each(["estimate", "fiction"])("publishes a labelled %s override", label => {
+    const x = build({ body: { rmr_override_kcal_day: 1800 }, opts: { met: 1 } });
+    Object.assign(x.body.props, { rmr_override_label: label });
+    x.sch.run(x.w, 3600, 60);
+    expect(x.out.rmr_kcal).toBe(1800);
+    expect(x.out.rmr_label).toBe(label);
+    expect(x.body.props.expenditure_kcal).toBeCloseTo(1800 / 24, 9);
+  });
+
+  it("rejects unknown formula text and preserves missing-measurement nulls", () => {
+    const x = build();
+    expect(() => restingMetabolicRate(x.body, "unknown")).toThrow("unsupported RMR formula");
+    expect(() => restingMetabolicRate(x.body, "70 x kg^0.75 garbage")).toThrow("unsupported RMR formula");
+    expect(restingMetabolicRate(x.body)).toBeNull();
+  });
+
+  it("keeps the Mifflin coefficients and power-law parser only in physiology throughout src", () => {
+    interface Fs { readdirSync(p: string): string[]; statSync(p: string): { isDirectory(): boolean }; readFileSync(p: string, enc: string): string }
+    const fs = (globalThis as unknown as { process: { getBuiltinModule(id: string): Fs } }).process.getBuiltinModule("node:fs");
+    const root = decodeURIComponent(new URL("../src", import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, "$1");
+    const walk = (dir: string): string[] => fs.readdirSync(dir).flatMap(f => {
+      const path = `${dir}/${f}`;
+      return fs.statSync(path).isDirectory() ? walk(path) : [path];
+    });
+    const files = walk(root).map(path => ({ path, text: fs.readFileSync(path, "utf8") }));
+    for (const marker of ["6.25", "-161", "kg\\^"])
+      expect(files.filter(f => f.text.includes(marker)).map(f => f.path)).toEqual([`${root}/physiology.ts`]);
   });
 });

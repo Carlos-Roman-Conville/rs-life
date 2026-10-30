@@ -1,6 +1,6 @@
 /**
  * Human energy, heat, sleep and water as one engine process on a `body` component (kind "body", `props`). Every table
- * number comes from `data/library/physiology.json` through library.ts; the formulas are Mifflin-St Jeor (physics.ts,
+ * number comes from `data/library/physiology.json` through library.ts; the formulas are Mifflin-St Jeor (physiology.ts,
  * PHY-MSJ), the MET cost (physics.ts metabolicHeat, PHY-MET) and the drift rule of PHYSIOLOGY.md section 4. What the docs
  * ask for and the library cannot support is listed in FLAGS.md and left disabled here.
  *
@@ -11,14 +11,14 @@
  * Outputs by library id on `body.props.outputs` (read them with `bodyOutputs`): alertness, sleep_debt, circadian,
  * core_c, core_state, work_capacity_heat, water_deficit_pct, hydration_state, endurance_hydration, work_capacity_hydration,
  * energy_balance_kcal,
- * pal, rmr_kcal, sweat_l_per_h, breath_water_l_per_h, skin_diffusion_l_per_h, urine_l_per_h, wbgt_c, wbgt_ceiling_c,
+ * pal, rmr_kcal, rmr_label, sweat_l_per_h, breath_water_l_per_h, skin_diffusion_l_per_h, urine_l_per_h, wbgt_c, wbgt_ceiling_c,
  * acclimatisation, fatigue_met_hours, and the matching `*_row` ids. A water deficit in a band whose row says work stops
  * ("incapacitated") or death opens a crisis record for that row (crisis.ts); the engine kills no one.
  */
 import type { Process } from "./scheduler.ts";
 import { addHeat, type World } from "./world.ts";
 import type { Component } from "./registry.ts";
-import { C_TO_K, KCAL_J, M, O2_ENERGY_J_PER_L, P_SEA_LEVEL, SWEAT_LATENT, heatFlow, metabolicHeat, molesInVolume, restingMetabolicRate, waterVapourPressure } from "./physics.ts";
+import { C_TO_K, KCAL_J, M, O2_ENERGY_J_PER_L, P_SEA_LEVEL, SWEAT_LATENT, heatFlow, metabolicHeat, molesInVolume, waterVapourPressure } from "./physics.ts";
 import { libraryMeta, libraryRow, libraryTable, type LibraryRow } from "./library.ts";
 import { accumulateExposure } from "./atmosphere.ts";
 import { trackCrisis } from "./crisis.ts";
@@ -222,12 +222,28 @@ export function splitSleepQuality(): number { return lib().splitQuality; }
 /** The PAL bands' lowest and highest value (FAO 2004 as the library has them). */
 export function palRange() { return { min: lib().palMin, max: lib().palMax }; }
 
-/** Resting rate of a body from its props, kcal/day, or null when height, age or sex is missing. */
-export function bodyRmr(body: Component): number | null {
-  if (body.props.rmr_kcal_day !== undefined) return body.props.rmr_kcal_day; // a species' own formula (anatomy.speciesRmr)
-  const { height_cm: h, age_y: a, male } = body.props;
-  if (h === undefined || a === undefined || male === undefined) return null;
-  return restingMetabolicRate(body.mass, h, a, male === 1);
+/** Resting rate in kcal/day, selected by anatomy.species.rmr-formula (human column by default).
+ * Mifflin-St Jeor 1990 (PHY-MSJ): null when height, age or sex is missing.
+ * Power-law coefficients come from the species cell, including the Kleiber horse example.
+ * Explicit host overrides require an estimate or fiction label.
+ */
+export function restingMetabolicRate(body: Pick<Component, "mass" | "props">, rmrFormula?: string): number | null {
+  const override = body.props.rmr_override_kcal_day;
+  if (override !== undefined) {
+    const label = (body.props as unknown as { rmr_override_label?: string }).rmr_override_label;
+    if (label !== "estimate" && label !== "fiction")
+      throw new Error("physiology: rmr_override_label must be estimate or fiction");
+    return override;
+  }
+  const formula = rmrFormula ?? String(libraryRow("anatomy", "species", "anatomy.species.rmr-formula")["Human default"]);
+  if (formula === "Mifflin-St Jeor (PHYSIOLOGY)") {
+    const { height_cm: h, age_y: a, male } = body.props;
+    if (h === undefined || a === undefined || male === undefined) return null;
+    return 10 * body.mass + 6.25 * h - 5 * a + (male === 1 ? 5 : -161);
+  }
+  const power = /^(?:Kleiber's law )?(\d+(?:\.\d+)?) x kg\^(\d+(?:\.\d+)?)$/.exec(formula);
+  if (power) return Number(power[1]) * Math.pow(body.mass, Number(power[2]));
+  throw new Error(`physiology: unsupported RMR formula "${formula}"`);
 }
 
 export interface ScheduleEntry {
@@ -237,6 +253,7 @@ export interface ScheduleEntry {
 }
 
 export interface PhysiologyOptions {
+  rmrFormula?: string;                 // species RMR-formula cell; defaults to the human column
   met?: number;                        // constant MET when there is no schedule (or no window matches)
   schedule?: ScheduleEntry[];          // first matching window wins
   every?: number;                      // run every N fast steps (default 10)
@@ -290,7 +307,7 @@ export function physiologyProcess(body: string, room: string, o: PhysiologyOptio
     const clock = clockH0 + w.t / 3600, hour = ((clock % 24) + 24) % 24;
     p.core_c ??= t.restCoreC;
     p.acclimatisation ??= 1;
-    const rmr = bodyRmr(b);
+    const rmr = restingMetabolicRate(b, o.rmrFormula);
     const dayIndex = Math.floor((clock - dayStartH) / 24);
     if (p.day_index === undefined) p.day_index = dayIndex;
 
@@ -388,6 +405,8 @@ export function physiologyProcess(body: string, room: string, o: PhysiologyOptio
     p.intake_kcal ??= 0;
     out.met = met;
     out.rmr_kcal = rmr;
+    out.rmr_label = p.rmr_override_kcal_day !== undefined
+      ? (p as unknown as { rmr_override_label: string }).rmr_override_label : rmr === null ? null : "researched";
     out.energy_balance_kcal = p.intake_kcal - p.expenditure_kcal;
     out.energy_expenditure_kcal = p.expenditure_kcal;
     out.day_expenditure_kcal = p.day_expenditure_kcal;

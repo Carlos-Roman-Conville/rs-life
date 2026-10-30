@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { runHorseStable, horseRows, STABLE } from '../examples/horse-stable.ts';
 import { respiratoryProfile, respiratoryState } from '../src/atmosphere.ts';
+import { bodyOutputs } from '../src/physiology.ts';
 import { libraryRow } from '../src/library.ts';
 import { fatKcalPerKg } from '../src/nutrition.ts';
 
@@ -37,7 +38,7 @@ describe('independence: a horse in a stable, no game code', () => {
     const rows = horseRows();
     expect(String(species('rmr-formula'))).toContain('70 x kg^0.75');
     expect(rows.rmrKcalDay).toBeCloseTo(70 * Math.pow(STABLE.massKg, 0.75), 9);
-    expect(run.body.props.rmr_kcal_day).toBe(rows.rmrKcalDay);
+    expect(bodyOutputs(run.body).rmr_kcal).toBe(rows.rmrKcalDay);
     expect(run.days[0]!.kcalOut).toBeCloseTo(rows.rmrKcalDay, 3);
     expect(rows.heartOutputLMin).toBeCloseTo(Number(species('resting-cardiac-output-l-min-per-kg')) * STABLE.massKg, 9);
     for (const d of run.days) expect(d.heartOutputLMin).toBe(rows.heartOutputLMin);

@@ -5,7 +5,7 @@ import { bodyOutputs } from "../src/physiology.ts";
 import { loseBlood } from "../src/circulation.ts";
 import { stockPools } from "../src/nutrition.ts";
 import { libraryTable } from "../src/library.ts";
-import { anatomyProcess, anatomyRules, assembleBody, assemblyBreathing, assemblyCirculation, connectOrganInput, feedAssembly, speciesProfile } from "../src/anatomy.ts";
+import { anatomyProcess, anatomyRules, assembleBody, assemblyBreathing, assemblyCirculation, connectOrganInput, feedAssembly, speciesRmr, speciesProfile } from "../src/anatomy.ts";
 
 function fixture(profile = speciesProfile(), mass = 70) {
   const w = new World(defaultRegistry());
@@ -131,4 +131,16 @@ describe("anatomy assembly", () => {
     expect(impaired.b.props.intake_kcal).toBe(normal.b.props.intake_kcal / 2);
     expect(impaired.w.trace.into("body", "mass:water")).toBe(normal.w.trace.into("body", "mass:water") / 2);
   });
+});
+
+
+it("delegates the horse row's RMR to physiology with the supplied mass", () => {
+  const profile = speciesProfile("A horse (example)");
+  expect(profile.fields["anatomy.species.rmr-formula"]).toBe("Kleiber's law 70 x kg^0.75");
+  expect(speciesRmr(profile, 500)).toBe(70 * Math.pow(500, 0.75));
+  profile.fields["anatomy.species.rmr-formula"] = "80 x kg^0.5";
+  expect(speciesRmr(profile, 500)).toBe(80 * Math.pow(500, 0.5));
+  profile.fields["anatomy.species.rmr-formula"] = "unknown";
+  expect(() => speciesRmr(profile, 500)).toThrow("unsupported RMR formula");
+  expect(speciesRmr(speciesProfile(), 70)).toBeNull();
 });

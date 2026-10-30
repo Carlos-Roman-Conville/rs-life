@@ -3,7 +3,7 @@
  * are adequacies, not transfers of fictitious blood or nutrient mass.
  */
 import { libraryRow, libraryTable, type LibraryRow } from "./library.ts";
-import { bodyOutputs } from "./physiology.ts";
+import { bodyOutputs, restingMetabolicRate } from "./physiology.ts";
 import { breathingProcess, respiratoryProfile, type RespiratoryProfile } from "./atmosphere.ts";
 import { circulationProcess, initialiseCirculation, type CirculationOptions } from "./circulation.ts";
 import { eatMeal, poolLevel, type MealItem, type MealOptions } from "./nutrition.ts";
@@ -55,10 +55,9 @@ export function speciesProfile(column: "Human default" | "A horse (example)" = "
       : typeof ve === "number" ? respiratoryProfile({ maxVentilationLMin: ve }) : null };
 }
 
-/** The species' resting rate from its RMR-formula field (kcal/day), or null when the field is not a power law (the human's is Mifflin-St Jeor in physiology). */
+/** Delegate the species cell to physiology; human measurements are unavailable here, so its rate is null. */
 export function speciesRmr(profile: SpeciesProfile, massKg: number): number | null {
-  const m = /([\d.]+) x kg\^([\d.]+)/.exec(String(profile.fields["anatomy.species.rmr-formula"]));
-  return m ? Number(m[1]) * Math.pow(massKg, Number(m[2])) : null;
+  return restingMetabolicRate({ mass: massKg, props: {} }, String(profile.fields["anatomy.species.rmr-formula"]));
 }
 
 export interface OrganState {

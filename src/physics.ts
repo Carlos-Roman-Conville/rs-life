@@ -86,14 +86,6 @@ export function metabolicHeat(met: number, massKg: number): number {
 /** Joules per kilocalorie, the thermochemical calorie (4.184 J), the unit the food and expenditure tables use. */
 export const KCAL_J = 4184;
 
-/**
- * Resting metabolic rate, kcal/day, Mifflin-St Jeor 1990 (PHY-MSJ in data/library/sources.json): within about 10% for
- * most healthy adults. Men +5, women -161.
- */
-export function restingMetabolicRate(massKg: number, heightCm: number, ageYears: number, male: boolean): number {
-  return 10 * massKg + 6.25 * heightCm - 5 * ageYears + (male ? 5 : -161);
-}
-
 /** Latent heat of sweat evaporation, J/kg (about 2.43 MJ/kg at skin temperature). ENG-LAT. */
 export const SWEAT_LATENT = 2.43e6;
 
