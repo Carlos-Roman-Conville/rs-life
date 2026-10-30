@@ -1,0 +1,44 @@
+{
+  "processes": [
+    {
+      "id": "realism.step",
+      "mechanisms": [
+        "realism.env.diurnal_curve",
+        "realism.nutrition.eat_meal",
+        "realism.gas.room_box",
+        "realism.physiology.energy_expenditure",
+        "realism.gas.breathing_process",
+        "realism.anatomy.assembly",
+        "realism.anatomy.damage_repair",
+        "realism.anatomy.organ_function",
+        "realism.anatomy.tissue_collagen",
+        "realism.infra.scheduler"
+      ],
+      "writes": [
+        "place.t",
+        "body.kcal_in",
+        "body.pool_contents",
+        "body.water_in",
+        "air.gas_masses",
+        "air.ppm_gases",
+        "air.rh",
+        "air.room_t",
+        "body.expenditure",
+        "body.heat",
+        "air.outputs_o2_frac_co2_ppm_sao2_cohb_ventilation_l_",
+        "body.organ_tissue_components_graph_edges",
+        "body.damage",
+        "body.function_per_organ",
+        "body.cascade_statement_kineticsseconds",
+        "body.collagen_integrity",
+        "world.world_advanced"
+      ],
+      "reads": [],
+      "period": 60000,
+      "phase": "fast",
+      "order": "insertion"
+    }
+  ],
+  "ports": [],
+  "streams": []
+}
