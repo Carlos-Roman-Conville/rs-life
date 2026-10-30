@@ -70,6 +70,21 @@ zero within the solver's tolerance, momentum and energy ledgers closing; a dropp
 ground with the cited velocity and its impulse appears in the ledger; the horse stands by configuration.
 `grep` finds no `strength` scalar in `src/`.
 
+**Interfaces read by combat (requested 2026-10-30, CMB-13; proposed).** Rex decided on 2026-10-30 that turns resolve
+simultaneously and space is computed (COMBAT.md sections 1 and 2, pirate commit 5179b59). Mechanics publishes these per
+body, as of the current moment, with wounds and fatigue already applied through the per-limb state, never as a combat
+formula:
+
+| Output (proposed id) | Unit | Comes from | Needs |
+|---|---|---|---|
+| `mechanics.reach` per arm, with the held item | m | segment lengths from the anthropometric table plus the item's length; joint range from the same table | phase 6 segments; phase 9 for the item |
+| `mechanics.strike_time` per arm and strike | s | the swing of the arm-and-item chain: segment and item mass, inertia and lengths, driven by the limb's force available today (muscular) | phase 6 articulated chain; muscular force per limb |
+| `mechanics.ground_speed` | m/s | gait from leg length and mass (a cited walk and run relation, Froude-number scaling where the source gives it), on the current footing's friction | phase 6 contact and locomotion; phase 9 surfaces |
+| `neurology.reaction_latency` per limb | s | a cited human simple and choice reaction time, raised by alertness, fatigue and drink; neurology owns it, not mechanics | neurology; the mapping from the STATS Reflexes attribute to latency is the game's (Rex) |
+
+Combat owns every rule that uses them: who lands first, the Intuition/Ti dodge, the steady-ground bonus and the
+off-balance debuff, and the sub-cubes per turn. A value whose source is not opened is `null` and flagged, as everywhere.
+
 ## Phase 7: fluid dynamics (needs 6)
 
 **Scope.** Hydrostatics, buoyancy, drag, flow through openings and pipes, open-channel and tidal flow at the
