@@ -17,7 +17,19 @@ apply to every phase below, on top of the eight in `PHASES-4-5.md`:
   greps `src/` for the forbidden shortcut it replaces.
 
 **Nothing below is built until Rex picks the order.** This file records what exists, what is missing and how
-each phase is accepted. Every phase is accepted on the human first and then on a second species by configuration
+each phase is accepted.
+
+**Where this sits in the platform roadmap (Rex approved the organisation 2026-10-30; `Toolchain/ROADMAP.md`,
+`ENGINES.md` "The approved organisation").** Before any phase here: **P0 Kernel** (a new keeper builds shared
+time, ids, replay, seeded RNG and units; infrastructure only, never a formula; it asks this keeper what
+`realism`'s scheduler, registry and RNG do today, answered from the code, see the last section) and **P1 overlap
+closure** (the registry keeper sends DUP groups where realism is the proposed owner or a losing home: fatigue,
+metabolism, mortality, body water, sleep, ageing among them; per group this keeper agrees or counters the owner
+and the acceptance test, builds nothing, and nothing moves until it agrees). Then phases 6 to 9 and 13 are
+**P2 Physical foundations** and 10 to 12 are **P3 Life completion**; the roadmap's own tests for P2 and P3 are
+quoted under each phase. Reality stays one package until the mechanics work makes the split into Physical
+Reality and Life & Species necessary (Rex). Refinement (A): a phase starts when what it reads from is ready, not
+when the previous phase finishes. Every phase is accepted on the human first and then on a second species by configuration
 (the horse of `examples/horse-stable.ts`), with no game word in `src/`.
 
 ## Dependency graph
@@ -28,7 +40,21 @@ each phase is accepted. Every phase is accepted on the human first and then on a
 10 metabolism as flux ─┬─ 11 waste, sanitation, decomposition ─┤  (11 also reads 7 for water, 9 for decay)
                        └─ 12 genes and ageing                   │
 8 optics (independent; reads 9 for albedo when 9 exists) ───────┘
+13 weather and climate (reads 7 for evaporation and flow, 8 for solar geometry; replaces the pirate Markov chain)
 ```
+
+Roadmap tests this plan must meet (`ROADMAP.md` P2 and P3, Rex 2026-10-30): P2 (1) a human standing one minute
+and a falling body conserve energy within 0.1 %; (2) a timber beam's deflection matches Euler–Bernoulli within
+5 % and a wall fails at its tabulated load; (3) a hull floats at its Archimedes draught; (4) the weather
+generator reproduces a station's monthly normals (mean, variance, rain days) within 10 % over 30 simulated years;
+(5) visibility falls with illuminance as the source curve. P3 (1) food in = tissue + heat + CO₂ + water + faeces
++ urine, mass balanced within 1 % over a week; (2) 1,000 simulated lives from birth reproduce a source life table
+(survival at 1, 5, 20, 50, 70 within 15 %); (3) a crop's yield responds to rain and soil as in the source trials;
+(4) no ageing effect exists outside organ capacity. P2 also lists structural mechanics per wall and roof type,
+solar geometry and seasons, oceans and currents, hydrology, soils, geography and routes, a world energy ledger
+and acoustics; P3 adds reproduction, pregnancy, growth, homeostasis loops, fever, hunger and appetite, one sleep
+pressure (DUP-12), crops as plants and pathogen transmission. Those land in the phases below as sub-steps when
+Rex picks the order; they are not planned in detail here.
 
 ## Phase 6: mechanics
 
@@ -125,6 +151,26 @@ the organism framework's species file carrying them so a horse's are configurati
 existing pk model; a 70-year-old and a 25-year-old differ in work capacity only through the cited VO₂max and
 muscle-mass declines; `grep` finds no age or talent scalar applied outside a capacity.
 
+## Phase 13: weather and climate (needs 7 and 8's solar geometry; a major P2 subsystem, Rex 2026-10-30)
+
+**Scope.** Weather generated from physics, never drawn from a table: solar heating by latitude, date and hour,
+and the planet's rotation; pressure gradients and wind; humidity and condensation; instability and convection;
+ocean evaporation; terrain and orographic rain; circulation; surface water and soil moisture. Climate is the
+statistics of the generated weather. It replaces the pirate game's daily Markov chain
+(`web/src/world/adapters/places.ts` `weatherState`, `world/ENVIRONMENT.md` §2; DUP-34, with the monthly climate
+table DUP-35), which becomes a read of this phase's outputs by place.
+**Exists.** `atmosphere.json` baseline, altitude and modifiers; `gasdynamics.json` box model; `physics.ts`
+`waterVapourPressure`, `airDensity`, `surfaceEvaporationKgPerS`, latent heat; `environment.json` exposure by
+season; `environmentProcess` (REGISTRY `realism.env.place_process`); `physiology.json` `wbgt_limits`.
+**Missing.** `src/weather.ts`: a solar-geometry function (declination, hour angle, irradiance at the top of the
+atmosphere from cited constants), a surface energy balance per place, a column or cell model for pressure,
+wind and moisture, precipitation from condensation, a station-normals table opened for the acceptance station
+(a Caribbean station for the pirate window, a second station for independence), terrain inputs.
+**Acceptance.** ROADMAP P2 test 4: thirty simulated years at one station reproduce its monthly normals (mean
+temperature, variance, rain days) within 10 %; the diurnal curve follows the solar input; the water and energy
+ledgers close (evaporation out equals precipitation plus storage change over the run); a second station by
+configuration; `grep` finds no transition matrix or state table in `src/`.
+
 ## Proposed build order (for Rex to pick; mechanics first as he set)
 
 1. **6 mechanics**: the foundation Rex named first; everything physical hangs on it.
@@ -135,8 +181,30 @@ muscle-mass declines; `grep` finds no age or talent scalar applied outside a cap
 4. **7 fluids** and **9 materials**: both need 6 only; 11's water and decay read them, so they come before 11 if
    Rex prefers completeness over the Settlement asks.
 5. **12 genes and ageing**: needs 10 and the organism framework; the bestiary keeper's species content lands here.
-6. **8 optics**: independent and self-contained; last because nothing in the engine waits on it, unless combat's
-   visibility rules need it sooner.
+6. **8 optics**: independent and self-contained, unless combat's visibility rules need it sooner.
+7. **13 weather and climate**: after 7 (evaporation, flow) and 8's solar geometry; the pirate plugin's Markov
+   chain keeps running until this phase's acceptance test passes, then becomes a read.
+
+All of it after P0 Kernel and P1 overlap closure, which are not this keeper's to schedule.
+
+## For the Kernel keeper (P0): what realism's time, ids and randomness do today, from the code
+
+- **Time and scheduling:** `src/scheduler.ts` holds `Process { step(world, dt) }` and `Scheduler.run(world,
+  seconds, dt)`: a fixed step, every process stepped in the order it was added, `dt` the seconds since that
+  process last ran. No priorities, no event queue, no declared cross-process order beyond insertion (DUP-33).
+  `World` (`src/world.ts`) holds the registry, the graph, the trace, the clock and the conservation ledger the
+  trace checks each step. Hosts choose the step (the settlement runs the body at 60 s).
+- **Ids:** strings. Components are named by the host (`"settler-4"`), library rows by their `id` column
+  (`data/library/*.json`), substances by `id` in `data/substances.json`; outputs are keyed by library id
+  (`outputs["sleep_debt"]`). No id generator, no namespace rule beyond the file a row lives in.
+- **Randomness:** `rng(seed)` in `src/process.ts`, mulberry32, one stream per caller that asks for one (control
+  noise, thermometer noise, medicine seeds); no per-mechanism stream registry (DUP-32). No `Math.random` in
+  `src/`.
+- **Units:** SI in code (kg, J, Pa, K or °C by name); the library's columns carry units in their headers; no
+  dimensional validation.
+- **Replay and snapshots:** the trace records every transfer (`src/trace.ts`, running sums since 2569) and the
+  settlement renews it daily (REAL-10: it grows without bound); there is no snapshot or reducer. A seeded run
+  is reproducible by re-running.
 
 Costs follow `PHASES-4-5.md`'s pattern: each phase is a belt chain of small Sonnet tasks with a checkpoint, about
 the size of Phase 4's (26 tasks, about 46 dollars) for 6, 10 and 11, smaller for the rest.
