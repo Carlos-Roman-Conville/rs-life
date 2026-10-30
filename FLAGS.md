@@ -16,3 +16,4 @@ One file per module under `flags/`; every flag line lives there.
 - [ecology and population (2530)](flags/ecology-and-population.md)
 - [independence (2532)](flags/independence.md)
 - [chemistry (2573)](flags/chemistry.md)
+- [validation reference data (2645)](flags/FLAGS-validation.md)
