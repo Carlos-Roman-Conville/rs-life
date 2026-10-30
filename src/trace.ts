@@ -45,21 +45,32 @@ export class Trace {
     return count;
   }
   /** Sum of a quantity moved into a component by all processes. */
-  into(component: string, quantity: string) { this.fold(); return this.inSums.get(`${component}\0${quantity}`) ?? 0; }
-  outOf(component: string, quantity: string) { this.fold(); return this.outSums.get(`${component}\0${quantity}`) ?? 0; }
+  into(component: string, quantity: string) { this.fold(); return this.total(this.inSums, `${component}\0${quantity}`); }
+  outOf(component: string, quantity: string) { this.fold(); return this.total(this.outSums, `${component}\0${quantity}`); }
   // Running sums per (component, quantity), folded in order from the first transfer not yet seen: the same additions in the
-  // same order as summing the whole list, so the same numbers, without re-reading the list on every call (2569).
-  private inSums = new Map<string, number>();
-  private outSums = new Map<string, number>();
+  // same order with or without compaction. Neumaier carries survive folds and head removals (2656).
+  private inSums = new Map<string, { sum: number; carry: number }>();
+  private outSums = new Map<string, { sum: number; carry: number }>();
   private folded = 0;
+  private total(sums: Map<string, { sum: number; carry: number }>, key: string) {
+    const s = sums.get(key);
+    return s ? s.sum + s.carry : 0;
+  }
+  private add(sums: Map<string, { sum: number; carry: number }>, key: string, amount: number) {
+    let s = sums.get(key);
+    if (!s) { s = { sum: 0, carry: 0 }; sums.set(key, s); }
+    const total = s.sum + amount;
+    s.carry += Math.abs(s.sum) >= Math.abs(amount) ? (s.sum - total) + amount : (amount - total) + s.sum;
+    s.sum = total;
+  }
   private fold() {
     const ts = this.transfers;
     if (this.folded > ts.length) { this.inSums.clear(); this.outSums.clear(); this.folded = 0; }
     for (; this.folded < ts.length; this.folded++) {
       const x = ts[this.folded];
       const i = `${x.to}\0${x.quantity}`, o = `${x.from}\0${x.quantity}`;
-      this.inSums.set(i, (this.inSums.get(i) ?? 0) + x.amount);
-      this.outSums.set(o, (this.outSums.get(o) ?? 0) + x.amount);
+      this.add(this.inSums, i, x.amount);
+      this.add(this.outSums, o, x.amount);
     }
   }
   summary(): string {

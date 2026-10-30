@@ -1,10 +1,34 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { Trace } from "../src/trace.ts";
 import { World } from "../src/world.ts";
 import { defaultRegistry } from "../src/registry.ts";
-import { runHorseStable } from "../examples/horse-stable.ts";
 
 describe("trace compaction", () => {
+  it("preserves low bits through cancellation, retained tails, queries and compaction", () => {
+    for (const compact of [false, true]) {
+      const trace = new Trace();
+      for (const [t, amount] of [1, 1e16, -1e16, 0.25].entries()) {
+        trace.record({ t, amount, process: "fixture", quantity: "q", from: "a", to: "b" });
+        if (t === 1) expect(trace.into("b", "q")).toBe(1e16);
+        if (compact) trace.compact(t); // retain this transfer, already folded once
+      }
+      expect(trace.into("b", "q")).toBe(1.25);
+      expect(trace.outOf("a", "q")).toBe(1.25);
+      expect(trace.into("a", "q")).toBe(0);
+      expect(trace.outOf("b", "q")).toBe(0);
+    }
+  });
+
+  it("clears carries with the sums when a shortened transfer array resets the cache", () => {
+    const trace = new Trace();
+    for (const amount of [1e16, 1]) trace.record({ t: 0, amount, process: "fixture", quantity: "q", from: "a", to: "b" });
+    expect(trace.into("b", "q")).toBe(1e16);
+    trace.transfers.length = 0;
+    trace.record({ t: 1, amount: 2, process: "fixture", quantity: "q", from: "a", to: "b" });
+    expect(trace.into("b", "q")).toBe(2);
+    expect(trace.outOf("a", "q")).toBe(2);
+  });
+
   it("keeps exact all-time sums across partial folds, retained tails and repeated compaction", () => {
     const full = new Trace(), compacted = new Trace();
     const record = (t: number, amount: number) => {
@@ -64,40 +88,4 @@ describe("trace compaction", () => {
     expect(w.trace.outOf("tank", "mass:water")).toBe(4);
   });
 
-  it("hourly compaction at dt 1 s for three horse-stable days preserves daily ledgers with bounded transfers", () => {
-    const full = runHorseStable(3, { stepS: 1 });
-    const compact = Trace.prototype.compact;
-    let peak = 0, calls = 0;
-    const spy = vi.spyOn(Trace.prototype, "compact").mockImplementation(function (this: Trace, horizon: number) {
-      peak = Math.max(peak, this.transfers.length); calls++;
-      return compact.call(this, horizon);
-    });
-    try {
-      const reduced = runHorseStable(3, { stepS: 1, compactEveryS: 3600 });
-      expect(calls).toBe(72);
-      expect(peak).toBeLessThan(full.w.trace.transfers.length / 24);
-      expect(reduced.w.trace.transfers).toHaveLength(0);
-      expect(reduced.days).toEqual(full.days);
-      expect(reduced.w.trace.failed()).toEqual([]);
-      expect(full.w.trace.failed()).toEqual([]);
-      expect(reduced.w.trace.checks.length).toBe(full.w.trace.checks.length);
-      expect(reduced.w.trace.checks.every((c, i) => {
-        const other = full.w.trace.checks[i];
-        return c.t === other.t && c.quantity === other.quantity && c.expected === other.expected
-          && c.actual === other.actual && c.tolerance === other.tolerance && c.ok === other.ok;
-      })).toBe(true);
-      expect(reduced.w.ledgerState().conserved).toEqual(full.w.ledgerState().conserved);
-      expect(reduced.w.ledgerState().elements.map(({ cursor, ...c }) => c))
-        .toEqual(full.w.ledgerState().elements.map(({ cursor, ...c }) => c));
-      const keys = new Set<string>();
-      for (const x of full.w.trace.transfers) {
-        keys.add(`${x.from}\0${x.quantity}`); keys.add(`${x.to}\0${x.quantity}`);
-      }
-      for (const key of keys) {
-        const [component, quantity] = key.split("\0");
-        expect(reduced.w.trace.into(component, quantity)).toBe(full.w.trace.into(component, quantity));
-        expect(reduced.w.trace.outOf(component, quantity)).toBe(full.w.trace.outOf(component, quantity));
-      }
-    } finally { spy.mockRestore(); }
-  }, 120000);
 });

@@ -11,14 +11,17 @@ export class World {
   trace = new Trace(count => this.moveTraceCursors(count));
   /** Quantities whose total across named components must stay constant (plus recorded flows out of the system). */
   conserved: { quantity: string; substance?: string; components: string[]; initial: number; tolerance: number; entered: number; left: number }[] = [];
+  private conservedCarries = new WeakMap<World["conserved"][number], { entered: number; left: number }>();
   private cursor = 0; // the first transfer not yet folded into the conserved tallies
-  private elements: { element: string; components: string[]; initial: number; tolerance: number; net: number; cursor: number }[] = [];
+  private elements: { element: string; components: string[]; initial: number; tolerance: number; net: number; carry: number; cursor: number }[] = [];
   env: Record<string, number> = {};
   constructor(registry: Registry) { this.registry = registry; }
 
   /** Detached ledger view for comparison; changing it cannot change the world's tallies or cursors. */
   ledgerState() {
-    return structuredClone({ conserved: this.conserved, cursor: this.cursor, elements: this.elements });
+    return structuredClone({ conserved: this.conserved,
+      conservedCarries: this.conserved.map(c => this.conservedCarries.get(c) ?? { entered: 0, left: 0 }),
+      cursor: this.cursor, elements: this.elements });
   }
 
   /** Validate every ledger consumer before moving any cursor for a trace head removal. */
@@ -58,8 +61,16 @@ export class World {
     for (const element of elements) {
       if (!atomicMass[element]) throw new Error(`no atomic mass for ${element}`);
       this.elements.push({ element, components: [...components], initial: this.elementMolesOf(element, components),
-        tolerance, net: 0, cursor: this.trace.transfers.length });
+        tolerance, net: 0, carry: 0, cursor: this.trace.transfers.length });
     }
+  }
+  /** Neumaier carries retain the low bits lost by each addition, including signed cancellation. */
+  private addConserved(c: World["conserved"][number], field: "entered" | "left", amount: number) {
+    let carry = this.conservedCarries.get(c);
+    if (!carry) { carry = { entered: 0, left: 0 }; this.conservedCarries.set(c, carry); }
+    const sum = c[field], total = sum + amount;
+    carry[field] += Math.abs(sum) >= Math.abs(amount) ? (sum - total) + amount : (amount - total) + sum;
+    c[field] = total;
   }
   /** The conservation check: current total + what the trace says left the set of components = initial + what entered. */
   afterStep() {
@@ -69,19 +80,27 @@ export class World {
       for (const c of this.conserved) {
         if (x.quantity !== c.quantity) continue;
         const f = c.components.includes(x.from), g = c.components.includes(x.to);
-        if (f && !g) c.left += x.amount; else if (!f && g) c.entered += x.amount;
+        if (f && !g) this.addConserved(c, "left", x.amount); else if (!f && g) this.addConserved(c, "entered", x.amount);
       }
     }
-    for (const c of this.conserved) this.trace.check(this.t, c.quantity, c.initial + c.entered - c.left, this.massOf(c.substance!, c.components), c.tolerance);
+    for (const c of this.conserved) {
+      const carry = this.conservedCarries.get(c);
+      this.trace.check(this.t, c.quantity, c.initial + (c.entered + (carry?.entered ?? 0)) - (c.left + (carry?.left ?? 0)),
+        this.massOf(c.substance!, c.components), c.tolerance);
+    }
     for (const c of this.elements) {
       for (; c.cursor < ts.length; c.cursor++) {
         const x = ts[c.cursor];
         // Chemical conversion is internal, not an exchange with an imaginary reservoir.
         if (x.chemicalChange || !x.quantity.startsWith("mass:")) continue;
         const from = c.components.includes(x.from), to = c.components.includes(x.to);
-        if (from !== to) c.net += (to ? 1 : -1) * x.amount * this.elementPerKg(x.quantity.slice(5), c.element);
+        if (from !== to) {
+          const amount = (to ? 1 : -1) * x.amount * this.elementPerKg(x.quantity.slice(5), c.element), total = c.net + amount;
+          c.carry += Math.abs(c.net) >= Math.abs(amount) ? (c.net - total) + amount : (amount - total) + c.net;
+          c.net = total;
+        }
       }
-      this.trace.check(this.t, `element:${c.element}`, c.initial + c.net, this.elementMolesOf(c.element, c.components), c.tolerance);
+      this.trace.check(this.t, `element:${c.element}`, c.initial + (c.net + c.carry), this.elementMolesOf(c.element, c.components), c.tolerance);
     }
   }
 }
