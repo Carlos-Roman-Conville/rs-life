@@ -85,6 +85,11 @@ formula:
 Combat owns every rule that uses them: who lands first, the Intuition/Ti dodge, the steady-ground bonus and the
 off-balance debuff, and the sub-cubes per turn. A value whose source is not opened is `null` and flagged, as everywhere.
 
+**Validation (PLATFORM.md 11a).** Independent data: standing ground-reaction force equals body weight on
+force-plate records; walking and running speeds against measured gait norms (for example Bohannon 2011) and Froude
+scaling across leg lengths (Alexander 1989), so the horse checks against the human with no new constant. Integration:
+mechanics with muscular (force available today) and physiology (the energy of work).
+
 ## Phase 7: fluid dynamics (needs 6)
 
 **Scope.** Hydrostatics, buoyancy, drag, flow through openings and pipes, open-channel and tidal flow at the
@@ -95,6 +100,10 @@ level a game needs (a cask, a bilge, a river, a hull); wind load as drag.
 surfaces, water as a place quantity with level and quality slots for Phase 11.
 **Acceptance.** A cask drains through a tap at the Torricelli rate with a cited discharge coefficient; a floating
 body displaces its own weight; a body in a current feels the cited drag; mass and energy ledgers close.
+
+**Validation (PLATFORM.md 11a).** Drag on a sphere and a flat plate against the standard drag curve; a hull's
+resistance against towing-tank data or the Holtrop-Mennen regression; buoyancy against Archimedes exactly. Integration:
+fluids with mechanics (forces) and atmosphere (ventilation of a room).
 
 ## Phase 8: optics (independent)
 
@@ -108,6 +117,10 @@ the observer; supernatural darkness is a `fiction` mechanism with its own row, n
 moonless overcast night versus full moon gives the cited lux; an observer sees or does not see a target at a
 cited contrast and distance; the sun's path by date and latitude matches an almanac row.
 
+**Validation (PLATFORM.md 11a).** Solar irradiance and illuminance against a clear-sky model and station
+measurements (NREL's solar position and irradiance data); visual detection against measured acuity by luminance.
+Integration: optics with environment (daylight, heat load) and neurology (vision).
+
 ## Phase 9: materials (needs 6)
 
 **Scope.** Deformation (elastic and plastic), fracture under load, corrosion, rot and decay of organic
@@ -119,6 +132,10 @@ materials; wear generalised from `wearProcess`.
 **Acceptance.** A rope fails at its cited breaking load and not below; a wrought-iron fitting in sea air loses
 mass at the cited rate per year with the oxygen and water accounted; a beam deflects by the cited formula; the
 ledger closes through rust and rot.
+
+**Validation (PLATFORM.md 11a).** Stiffness, strength and fatigue of oak, pine, hemp rope, wrought iron and
+bronze against handbook values (the Wood Handbook, ASM); failure of a loaded member against the handbook's design
+curves. Integration: materials with mechanics (load paths) and decomposition (rot weakening timber).
 
 ## Phase 10: metabolism as flux (reads nutrition, physiology, circulation, muscular)
 
@@ -135,6 +152,10 @@ a capacity cap per organ, the removal of any direct "energy available" stock; th
 work plus change in stores every day; a sprint whose ATP demand exceeds supply ends in fatigue by the muscular
 rates with no fatigue constant added; `grep` finds no `atp` quantity stored on a body.
 
+**Validation (PLATFORM.md 11a).** Total energy expenditure against doubly labelled water studies; substrate
+use and respiratory quotient against indirect calorimetry at rest and in work; the ATP flux at rest against the
+resting rate the library cites. Integration: metabolism with nutrition, physiology, circulation and muscular together.
+
 ## Phase 11: waste, sanitation, decomposition (needs 10; reads 7 and 9)
 
 **Scope.** Faeces, urine, CO₂ and sweat as traced outputs with mass and composition; where they go (a latrine,
@@ -150,6 +171,10 @@ soil nutrient return. Settlement and Economy consume these (cemeteries, waste ma
 place; a fouled well raises the waterborne exposure rows by the cited relation and a case opens a crisis; a
 buried body loses mass over cited stages with the ledger closing to soil, water and gas; sweat, urine and faeces
 appear in the body's water and nutrient ledgers.
+
+**Validation (PLATFORM.md 11a).** Decomposition stages against accumulated degree-day data (for example
+Megyesi 2005); faecal bacteria die-off in water against measured T90 values; latrine and well contamination against
+sanitation studies. Integration: waste with medicine (exposure) and water quality.
 
 ## Phase 12: genetics, cellular state and ageing (needs 10; reads anatomy, muscular, neurology, medicine)
 
@@ -191,6 +216,12 @@ inside the cited population ranges of the `ageing` table, and the drinker's live
 differing only in one cited enzyme variant clear alcohol at the cited rates through the existing pk. Two siblings from
 one cross differ by recombination, not by averaging. `grep` finds no age or talent scalar in `src/` acting outside a
 tissue state.
+
+**Validation (PLATFORM.md 11a).** VO2max and muscle-mass decline against longitudinal studies (for example
+Fleg 2005); alcohol clearance by ALDH2 genotype against pharmacokinetic studies; tissue damage and repair rates against
+cited cell-biology data where they exist, and labelled hypotheses tested by their consequences where they do not.
+Integration: genetics and tissue state with anatomy, muscular, neurology and medicine.
+
 **Where it meets P1 (DUP-17, batch 2).** DUP-17 is age effects in four unlinked places (the physiology ageing table
 no code reads, medicine's healing by age, muscular's age gate, neurology's dopamine decline) plus the game's ageing.
 Its planned owner is this phase. Closing it in P1 names one interim owner that the four effects read, without adding a
@@ -217,6 +248,19 @@ wind and moisture, precipitation from condensation, a station-normals table open
 temperature, variance, rain days) within 10 %; the diurnal curve follows the solar input; the water and energy
 ledgers close (evaporation out equals precipitation plus storage change over the run); a second station by
 configuration; `grep` finds no transition matrix or state table in `src/`.
+
+**Validation (PLATFORM.md 11a).** Against independent station records (for example GHCN daily), never one
+universal tolerance: monthly normals, rainfall frequency, dry-spell duration, temperature variability, wind
+distributions, seasonal patterns and extreme-event frequency, each with its own tolerance (Rex, 2026-10-30).
+Integration: weather with environment, ecology (yield) and the ship (wind).
+
+**Every phase, every mechanism (PLATFORM.md 11a).** Each mechanism carries its sources and model; inputs,
+outputs, units, assumptions and applicability; verification tests; validation against independent data with
+tolerances; stability, conservation and boundary tests; integration tests with what it reads and feeds; and a report of
+accuracy, uncertainty and open questions. The registry records it as implemented, integrated and validated, three
+states never conflated. The owner's own tests are not independence: reference data the code was not built from, a
+check unit that did not write the code, and the registry keeper's re-audit stand apart. A change to a scientific model
+or an architectural assumption is recorded and reviewed before it becomes authoritative.
 
 ## Proposed build order (for Rex to pick; mechanics first as he set)
 
