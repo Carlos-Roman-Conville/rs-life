@@ -293,7 +293,7 @@ Run `node --experimental-strip-types examples/horse-stable.ts`; test `test/indep
 Thirty days, a 500 kg horse (the `anatomy.species` "A horse (example)" column) in a 60 m3 stable with the
 library's 2 ACH, the human-week weather extrema, no stable-hand hazards. Ration 1 x Kleiber RMR
 (70 x kg^0.75 = 7,402 kcal/day) fed hourly, water drunk to the deficit. Per day the ledger prints kcal in and
-out, stored kcal and mass proxy, water in and held, CO2 peak (about 1,070 ppm), ventilation, heart output
+out, stored kcal and mass proxy, water in and held, CO2 peak (about 810 ppm), ventilation (28.025?28.027 L/min), heart output
 (0.07 L/min/kg x mass = 35 L/min), organ functions and MET-hours. The run closes: 30 days, 0 conservation
 failures (water, O2/CO2/N2, elements), energy in = out, no NaN. Nothing under `src/` or `examples/` mentions
 the game; `package.json` has no game dependency; no game import exists.
@@ -305,3 +305,5 @@ uses the human per-kg profile as a named stand-in, circulation is off, muscle fa
 functions stay 1 (no insult is applied). The test asserts the horse's own rows (RMR, cardiac output, blood
 volume, set point) and that breathing equals the profile function of the stable's air. It shows the engine
 takes a second species from library columns with no game code; it does not validate equine physiology.
+
+(2621) Horse gas figures now use physiology's Kleiber-scaled metabolic power: a fresh thirty-day run gives day-1 CO2 peak 809.712 ppm and ventilation 28.025 L/min, with 0 conservation failures; published human checkpoint rows are retained unchanged as requested. The new human run has day-1 CO2 peak 1378.817 ppm versus the published 1406.432: the human fixture also has a non-reference RMR, so unchanged gas numbers conflict with the single energy owner. Treat the historical human gas column as superseded, not as a current-run assertion.

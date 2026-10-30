@@ -10,7 +10,7 @@
  * DuBois from height_cm) and h (else ISO 7730's convection and radiation). On the room: rh (atmosphere's) and air_speed_ms (0).
  * Outputs by library id on `body.props.outputs` (read them with `bodyOutputs`): alertness, sleep_debt, circadian,
  * core_c, core_state, work_capacity_heat, water_deficit_pct, hydration_state, endurance_hydration, work_capacity_hydration,
- * energy_balance_kcal,
+ * energy_balance_kcal, metabolic_w,
  * pal, rmr_kcal, rmr_label, sweat_l_per_h, breath_water_l_per_h, skin_diffusion_l_per_h, urine_l_per_h, wbgt_c, wbgt_ceiling_c,
  * acclimatisation, fatigue_met_hours, and the matching `*_row` ids. A water deficit in a band whose row says work stops
  * ("incapacitated") or death opens a crisis record for that row (crisis.ts); the engine kills no one.
@@ -246,6 +246,18 @@ export function restingMetabolicRate(body: Pick<Component, "mass" | "props">, rm
   throw new Error(`physiology: unsupported RMR formula "${formula}"`);
 }
 
+/** Metabolic power owned by physiology; an explicit resting rate carries species/host selection. */
+export function metabolicRateW(met: number, body: Pick<Component, "mass" | "props">,
+  rmr: number | null = restingMetabolicRate(body)): number {
+  const scale = rmr === null ? 1 : rmr * KCAL_J / 86400 / metabolicHeat(1, body.mass);
+  return metabolicHeat(met, body.mass) * scale;
+}
+
+/** Oxygen demand in L/min for metabolic power in W (J/s). */
+export function oxygenLitresPerMin(metabolicW: number): number {
+  return metabolicW * 60 / O2_ENERGY_J_PER_L;
+}
+
 export interface ScheduleEntry {
   fromH: number; toH: number;          // clock hours; toH <= fromH wraps midnight
   activity: number | string;           // a MET or a library MET row (id or slug)
@@ -315,8 +327,7 @@ export function physiologyProcess(body: string, room: string, o: PhysiologyOptio
 
     const act = activityAt(hour), met = act.met;
     // energy: the MET cost, corrected to this body's resting rate when it has one (PHYSIOLOGY.md section 4); heat is M - W
-    const scale = rmr === null ? 1 : rmr * KCAL_J / 86400 / metabolicHeat(1, mass);
-    const mWatt = metabolicHeat(met, mass) * scale;
+    const mWatt = metabolicRateW(met, b, rmr);
     const workWatt = Math.min(p.work_w ?? 0, mWatt);
     const heatWatt = mWatt - workWatt;
     const spent = mWatt * dt;
@@ -405,6 +416,7 @@ export function physiologyProcess(body: string, room: string, o: PhysiologyOptio
     const hyd = hydrationRow(p.waterDeficitPct, over > 0);
     p.intake_kcal ??= 0;
     out.met = met;
+    out.metabolic_w = mWatt;
     out.rmr_kcal = rmr;
     out.rmr_label = o.rmrOverride !== undefined ? o.rmrOverride.label : rmr === null ? null : "researched";
     out.energy_balance_kcal = p.intake_kcal - p.expenditure_kcal;

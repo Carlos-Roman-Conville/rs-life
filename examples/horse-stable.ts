@@ -8,8 +8,8 @@
 import { World } from '../src/world.ts';
 import { Scheduler } from '../src/scheduler.ts';
 import { defaultRegistry, type Component } from '../src/registry.ts';
-import { bodyOutputs, physiologyProcess, ingest } from '../src/physiology.ts';
-import { airContents, breathingProcess, roomAirProcess, roomGasFraction, respiratoryState, respiratoryProfile } from '../src/atmosphere.ts';
+import { bodyOutputs, metabolicRateW, oxygenLitresPerMin, physiologyProcess, ingest } from '../src/physiology.ts';
+import { airContents, breathingProcess, roomAirProcess, roomGasFraction, respiratoryStateFromVo2, respiratoryProfile } from '../src/atmosphere.ts';
 import { anatomyProcess, assembleBody, speciesProfile, speciesRmr } from '../src/anatomy.ts';
 import { fatKcalPerKg } from '../src/nutrition.ts';
 import { P_SEA_LEVEL, airDensity, C_TO_K, KCAL_J } from '../src/physics.ts';
@@ -113,7 +113,7 @@ export function runHorseStable(durationDays: number = STABLE.days, options: { st
     }
   }
   if (w.trace.failed().length) throw new Error(w.trace.notes.filter(n => n.text.startsWith('CONSERVATION FAILED')).slice(0, 3).map(n => n.text).join('\n'));
-  const restingVentilation = respiratoryState({ pressureMmHg: P_SEA_LEVEL * 0.00750062, o2Frac: 0.2095, co2Frac: 0.0004, coPpm: 0 }, 1, STABLE.massKg, standIn).ventilationLMin;
+  const restingVentilation = respiratoryStateFromVo2({ pressureMmHg: P_SEA_LEVEL * 0.00750062, o2Frac: 0.2095, co2Frac: 0.0004, coPpm: 0 }, oxygenLitresPerMin(metabolicRateW(1, body, rmrKcalDay)) * 1000, standIn).ventilationLMin;
   return { w, sch, body, room, assembly, days, restingVentilation, elapsedMs: performance.now() - started };
 }
 

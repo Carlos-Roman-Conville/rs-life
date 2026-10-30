@@ -5,7 +5,7 @@ import { defaultRegistry, type Component } from "../src/registry.ts";
 import { Trace } from "../src/trace.ts";
 import { MMHG_PER_PA, M, pressureAtAltitude } from "../src/physics.ts";
 import { libraryRow } from "../src/library.ts";
-import { bodyOutputs, metOf } from "../src/physiology.ts";
+import { bodyOutputs, metOf, metabolicRateW } from "../src/physiology.ts";
 import { roomProcess } from "../src/process.ts";
 import {
   CALCULATOR, Grid, accumulateExposure, achFromFlow, airContents, altitudeAir, altitudeRow, alveolarPO2, baselineAir, bodyGasFlows, breathingProcess,
@@ -147,11 +147,11 @@ describe("the room as a box", () => {
 
 describe("sources and sinks", () => {
   it("makes a body's O2 and CO2 the person and goat rows of the library", () => {
-    const person = bodyGasFlows(1, 70);
+    const person = bodyGasFlows(metabolicRateW(1, { mass: 70, props: {} }));
     expect(-person.o2!).toBeCloseTo(0.25, 1); expect(person.co2!).toBeCloseTo(0.2, 1);
     expect(Math.abs(person.o2! / -0.25 - 1)).toBeLessThan(0.03); expect(Math.abs(person.co2! / 0.2 - 1)).toBeLessThan(0.03);
-    expect(-bodyGasFlows(1, 28).o2!).toBeCloseTo(0.1, 1);
-    expect(-bodyGasFlows(7, 70).o2!).toBeCloseTo(7 * -person.o2!, 10);
+    expect(-bodyGasFlows(metabolicRateW(1, { mass: 28, props: {} })).o2!).toBeCloseTo(0.1, 1);
+    expect(-bodyGasFlows(metabolicRateW(7, { mass: 70, props: {} })).o2!).toBeCloseTo(7 * -person.o2!, 10);
     expect(String(libraryRow("gasdynamics", "sources_sinks", "gasdynamics.sources_sinks.livestock-goats-pigs-hens")["Rate (placeholder)"])).toContain("0.1 L/min O2");
   });
   it("reads the lamp, fire, rot and stinkpot rows", () => {

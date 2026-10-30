@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { runHorseStable, horseRows, STABLE } from '../examples/horse-stable.ts';
-import { respiratoryProfile, respiratoryState } from '../src/atmosphere.ts';
-import { bodyOutputs } from '../src/physiology.ts';
+import { respiratoryProfile, respiratoryStateFromVo2 } from '../src/atmosphere.ts';
+import { bodyOutputs, oxygenLitresPerMin } from '../src/physiology.ts';
 import { libraryRow } from '../src/library.ts';
 import { fatKcalPerKg } from '../src/nutrition.ts';
 
@@ -47,7 +47,7 @@ describe('independence: a horse in a stable, no game code', () => {
     // The library has no horse respiratory row: the stand-in is the per-kg human profile, as FLAGS.md says.
     const d = run.days[0]!.outputs, air = { pressureMmHg: d.pressure_mmhg as number, o2Frac: d.o2_frac as number,
       co2Frac: (d.co2_ppm as number) / 1e6, coPpm: 0 };
-    expect(run.days[0]!.ventilationLMin).toBeCloseTo(respiratoryState(air, 1, STABLE.massKg, respiratoryProfile()).ventilationLMin, 6);
+    expect(run.days[0]!.ventilationLMin).toBeCloseTo(respiratoryStateFromVo2(air, oxygenLitresPerMin(d.metabolic_w as number) * 1000, respiratoryProfile()).ventilationLMin, 6);
     expect(run.restingVentilation).toBeGreaterThan(0);
   });
   it('logs a CO2 peak above outside air and below the library tolerance', () => {
