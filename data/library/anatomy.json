@@ -94,7 +94,7 @@
   },
   "crisis_floors": {
     "title": "Organ crisis floors (2633)",
-    "kind": "hypothesis",
+    "kind": "model",
     "conf": "low",
     "source": "ANATOMY.md section 3a (game design, 2026-10-29), not independent clinical evidence. Level 5; specification and validation gap: gears/anatomy-crisis-floors.md.",
     "columns": ["id", "Organ", "Floor", "Level", "Source", "source"],

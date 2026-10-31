@@ -147,10 +147,10 @@
       ["physiology.banister.tau-fatigue", "tau_fatigue", 1.9, "days", "researched", "open"],
       ["physiology.banister.k1-fitness-gain", "k1 (fitness gain)", 0.048, "ratio", "researched", "open"],
       ["physiology.banister.k2-fatigue-weight", "k2 (fatigue weight)", 0.117, "ratio", "researched", "open"],
-      ["physiology.banister.training-factor-min", "Training factor baseline and lower clamp", 0.6, "fraction", "estimate", "proposed in PHYSIOLOGY.md section 2, uncalibrated; evidence level 4 to 5"],
-      ["physiology.banister.training-factor-max", "Training factor upper clamp", 1.0, "fraction", "estimate", "proposed in PHYSIOLOGY.md section 2, uncalibrated; evidence level 4 to 5"],
-      ["physiology.banister.training-k1-normalisation", "Fitness normalisation: use the current k1 unchanged", "physiology.banister.k1-fitness-gain", "coefficient row reference", "estimate", "proposed in PHYSIOLOGY.md section 2, uncalibrated; DUP-18 uses the current table constant, not 0.4/42; evidence level 4 to 5"],
-      ["physiology.banister.training-k2-normalisation", "Fatigue normalisation: use the current k2 unchanged", "physiology.banister.k2-fatigue-weight", "coefficient row reference", "estimate", "proposed in PHYSIOLOGY.md section 2, uncalibrated; DUP-18 uses the current table constant, not 0.4/7; evidence level 4 to 5"],
+      ["physiology.banister.training-factor-min", "Training factor baseline and lower clamp", 0.6, "fraction", "estimate", "open"],
+      ["physiology.banister.training-factor-max", "Training factor upper clamp", 1.0, "fraction", "estimate", "open"],
+      ["physiology.banister.training-k1-normalisation", "Fitness normalisation: use the current k1 unchanged", "physiology.banister.k1-fitness-gain", "coefficient row reference", "estimate", "open"],
+      ["physiology.banister.training-k2-normalisation", "Fatigue normalisation: use the current k2 unchanged", "physiology.banister.k2-fatigue-weight", "coefficient row reference", "estimate", "open"],
       ["physiology.banister.daily-load", "Daily load", "sum of MET-hours above 2 MET", "MET-h", "proposed", "open"],
       ["physiology.banister.age-decline-of-the-ceiling", "Age decline of the ceiling", 10, "% per decade from the late 20s (sedentary); 5 to 7 trained", "proposed", "open"]
     ]
