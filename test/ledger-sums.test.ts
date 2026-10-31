@@ -89,9 +89,20 @@ describe("compensated ledger sums", () => {
   it("hourly compaction at dt 1 s for three horse-stable days preserves daily ledgers with bounded transfers", () => {
     const full = runHorseStable(3, { stepS: 1 });
     const compact = Trace.prototype.compact;
-    let peak = 0, calls = 0;
+    let peak = 0, peakChecks = 0, calls = 0;
+    let checked = 0;
     const spy = vi.spyOn(Trace.prototype, "compact").mockImplementation(function (this: Trace, horizon: number) {
       peak = Math.max(peak, this.transfers.length); calls++;
+      peakChecks = Math.max(peakChecks, this.checks.length);
+      // Compare every check with the un-compacted run before it is folded, including boundary checks.
+      for (const c of this.checks) {
+        if (c.t >= horizon) continue;
+        const other = full.w.trace.checks[checked++];
+        if (c.t !== other.t || c.quantity !== other.quantity || c.expected !== other.expected
+          || c.actual !== other.actual || c.tolerance !== other.tolerance || c.ok !== other.ok) {
+          throw new Error(`compaction changed check ${checked - 1}`);
+        }
+      }
       return compact.call(this, horizon);
     });
     try {
@@ -102,12 +113,21 @@ describe("compensated ledger sums", () => {
       expect(reduced.days).toEqual(full.days);
       expect(reduced.w.trace.failed()).toEqual([]);
       expect(full.w.trace.failed()).toEqual([]);
-      expect(reduced.w.trace.checks.length).toBe(full.w.trace.checks.length);
-      expect(reduced.w.trace.checks.every((c, i) => {
-        const other = full.w.trace.checks[i];
-        return c.t === other.t && c.quantity === other.quantity && c.expected === other.expected
-          && c.actual === other.actual && c.tolerance === other.tolerance && c.ok === other.ok;
-      })).toBe(true);
+      expect(peakChecks).toBeLessThan(full.w.trace.checks.length / 24);
+      expect(reduced.w.trace.checkCount).toBe(full.w.trace.checks.length);
+      expect(reduced.w.trace.checks).toEqual(full.w.trace.checks.slice(checked));
+      const expectedSummaries = new Map<string, { quantity: string; count: number; maxAbsError: number; maxErrorAt: number }>();
+      for (const c of full.w.trace.checks) {
+        if (c.t >= reduced.w.t) continue;
+        const error = Math.abs(c.expected - c.actual), s = expectedSummaries.get(c.quantity);
+        if (!s) expectedSummaries.set(c.quantity, { quantity: c.quantity, count: 1, maxAbsError: error, maxErrorAt: c.t });
+        else {
+          s.count++;
+          if (error > s.maxAbsError) { s.maxAbsError = error; s.maxErrorAt = c.t; }
+        }
+      }
+      expect(reduced.w.trace.checkSummaries).toEqual([...expectedSummaries.values()]);
+      expect(reduced.w.trace.checkSummaries.reduce((n, s) => n + s.count, 0)).toBe(checked);
       expect(reduced.w.ledgerState().conserved).toEqual(full.w.ledgerState().conserved);
       expect(reduced.w.ledgerState().conservedCarries).toEqual(full.w.ledgerState().conservedCarries);
       expect(reduced.w.ledgerState().elements.map(({ cursor, ...c }) => c))

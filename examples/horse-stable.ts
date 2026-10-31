@@ -30,7 +30,8 @@ export function horseRows() {
     bloodMl: profile.bloodMlKg * STABLE.massKg };
 }
 
-export function runHorseStable(durationDays: number = STABLE.days, options: { stepS?: number; compactEveryS?: number } = {}) {
+export function runHorseStable(durationDays: number = STABLE.days,
+  options: { stepS?: number; compactEveryS?: number; beforeCompact?: (world: World) => void } = {}) {
   const stepS = options.stepS ?? STABLE.stepS;
   if (!(stepS > 0) || !Number.isFinite(stepS)) throw new Error('stepS must be finite and positive');
   if (options.compactEveryS !== undefined && (!(options.compactEveryS > 0) || !Number.isInteger(options.compactEveryS / stepS))) {
@@ -109,7 +110,10 @@ export function runHorseStable(durationDays: number = STABLE.days, options: { st
     for (let i = 0; i < Math.round(durationDays * 86400 / stepS); i++) {
       sch.stepOnce(w, stepS);
       // The audit and both World ledgers have consumed this step; move the audit's cursor too.
-      if (sch.stepCount % (options.compactEveryS / stepS) === 0) cursor -= w.trace.compact(w.t);
+      if (sch.stepCount % (options.compactEveryS / stepS) === 0) {
+        options.beforeCompact?.(w);
+        cursor -= w.trace.compact(w.t);
+      }
     }
   }
   if (w.trace.failed().length) throw new Error(w.trace.notes.filter(n => n.text.startsWith('CONSERVATION FAILED')).slice(0, 3).map(n => n.text).join('\n'));
@@ -125,5 +129,5 @@ if ((import.meta as ImportMeta & { main?: boolean }).main) {
   for (const d of run.days) console.log([d.day, d.kcalIn, d.kcalOut, d.storedKcal, d.massKg, d.waterInKg, d.waterKg, d.co2PeakPpm,
     d.ventilationLMin, d.heartOutputLMin, d.fatigueMetHours, JSON.stringify(d.organsUnderOne), d.organsUnknown.length]
     .map(v => typeof v === 'number' ? v.toFixed(3) : v).join(' '));
-  console.log(`${run.w.trace.transfers.length} transfers; ${run.w.trace.checks.length} checks; 0 failures; ${run.elapsedMs.toFixed(0)} ms`);
+  console.log(`${run.w.trace.transfers.length} transfers; ${run.w.trace.checkCount} checks; ${run.w.trace.failed().length} failures; ${run.elapsedMs.toFixed(0)} ms`);
 }

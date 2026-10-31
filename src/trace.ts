@@ -8,6 +8,10 @@ import type { Crisis } from "./crisis.ts";
 export interface Transfer { t: number; process: string; quantity: string; from: string; to: string; amount: number; note?: string; chemicalChange?: boolean }
 
 export interface Check { t: number; quantity: string; expected: number; actual: number; tolerance: number; ok: boolean }
+/** Passing checks removed by compaction; ties keep the first encountered maximum. */
+export interface CheckSummary { quantity: string; count: number; maxAbsError: number; maxErrorAt: number }
+/** A note's kind is its leading token, excluding a trailing colon (e.g. anatomy or deficiency). */
+export interface NoteSummary { kind: string; count: number }
 
 export class Trace {
   #beforeCompact?: (count: number) => void;
@@ -17,7 +21,9 @@ export class Trace {
   }
   transfers: Transfer[] = [];
   checks: Check[] = [];
+  checkSummaries: CheckSummary[] = [];
   notes: { t: number; text: string }[] = [];
+  noteSummaries: NoteSummary[] = [];
   /** Every crisis record opened on any body (crisis.ts): the trace is where a death must find its crisis. */
   crises: Crisis[] = [];
   record(x: Transfer) { this.transfers.push(x); }
@@ -28,20 +34,57 @@ export class Trace {
     if (!ok) this.note(t, `CONSERVATION FAILED ${quantity}: expected ${expected} got ${actual} (tolerance ${tolerance})`);
     return ok;
   }
+  // Summaries contain only passes: every failure remains available verbatim here.
   failed() { return this.checks.filter(c => !c.ok); }
+  get checkCount() { return this.checks.length + this.checkSummaries.reduce((n, s) => n + s.count, 0); }
   /** Drop the chronological prefix strictly before horizonT, preserving all-time into/outOf sums.
    * World-owned traces require those transfers to have passed afterStep first. Other consumers must
-   * subtract the returned count from their own cursors. Checks, notes and crises are never removed.
+   * subtract the returned transfer count from their own cursors. Old passing checks and ordinary notes
+   * become summaries; failures, their diagnostic notes, crisis/death notes and all crises stay verbatim.
    */
   compact(horizonT: number): number {
     let count = 0;
     while (count < this.transfers.length && this.transfers[count].t < horizonT) count++;
-    if (!count) return 0;
-    this.#beforeCompact?.(count);
-    // Fold the retained tail too: folded must describe the entire remaining array after the splice.
-    this.fold();
-    this.transfers.splice(0, count);
-    this.folded = this.transfers.length;
+    if (count) {
+      // Validate before mutating any trace data, including the check/note summaries.
+      this.#beforeCompact?.(count);
+      // Fold the retained tail too: folded must describe the entire remaining array after the splice.
+      this.fold();
+      this.transfers.splice(0, count);
+      this.folded = this.transfers.length;
+    }
+    const checks = new Map(this.checkSummaries.map(s => [s.quantity, s]));
+    let kept = 0;
+    for (const c of this.checks) {
+      if (!(c.t < horizonT && c.ok)) { this.checks[kept++] = c; continue; }
+      const error = Math.abs(c.expected - c.actual);
+      let summary = checks.get(c.quantity);
+      if (!summary) {
+        summary = { quantity: c.quantity, count: 0, maxAbsError: error, maxErrorAt: c.t };
+        checks.set(c.quantity, summary);
+        this.checkSummaries.push(summary);
+      }
+      summary.count++;
+      if (error > summary.maxAbsError) { summary.maxAbsError = error; summary.maxErrorAt = c.t; }
+    }
+    this.checks.length = kept;
+    const notes = new Map(this.noteSummaries.map(s => [s.kind, s]));
+    kept = 0;
+    for (const n of this.notes) {
+      if (!(n.t < horizonT) || /\b(crisis|crises|death|dead|died)\b|CONSERVATION FAILED/i.test(n.text)) {
+        this.notes[kept++] = n;
+        continue;
+      }
+      const kind = n.text.trim().split(/[\s:]/, 1)[0] || "note";
+      let summary = notes.get(kind);
+      if (!summary) {
+        summary = { kind, count: 0 };
+        notes.set(kind, summary);
+        this.noteSummaries.push(summary);
+      }
+      summary.count++;
+    }
+    this.notes.length = kept;
     return count;
   }
   /** Sum of a quantity moved into a component by all processes. */
@@ -77,6 +120,6 @@ export class Trace {
     const byProcess = new Map<string, number>();
     for (const x of this.transfers) byProcess.set(`${x.process}:${x.quantity}`, (byProcess.get(`${x.process}:${x.quantity}`) ?? 0) + x.amount);
     const lines = [...byProcess].map(([k, v]) => `${k.padEnd(40)} ${v.toExponential(4)}`);
-    return `${this.transfers.length} transfers, ${this.checks.length} checks, ${this.failed().length} failed\n` + lines.join("\n");
+    return `${this.transfers.length} transfers, ${this.checkCount} checks, ${this.failed().length} failed\n` + lines.join("\n");
   }
 }
