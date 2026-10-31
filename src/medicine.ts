@@ -7,7 +7,6 @@
 import { libraryColumns, libraryRow, libraryTable, type LibraryRow } from "./library.ts";
 import { bodyOutputs } from "./physiology.ts";
 import { bleed } from "./circulation.ts";
-import { poolLevel } from "./nutrition.ts";
 import { rng } from "./process.ts";
 import type { Process } from "./scheduler.ts";
 import type { World } from "./world.ts";
@@ -16,6 +15,12 @@ import { recordCrisis, type Crisis } from "./crisis.ts";
 const DAY = 86400;
 const slug = (id: unknown) => String(id).split(".").pop()!;
 const ROMAN = ["I", "II", "III", "IV"];
+const COLLAGEN = "anatomy.tissues.connective-tissue-collagen";
+// (2723) level 4 mapping: retain x3 at the first daily collagen loss below the
+// nutrition threshold. No dose-response curve is available; see flags/medicine.md.
+const collagenImpairedAt = 1 - Number(/integrity -([\d.]+)/.exec(String(
+  libraryRow("anatomy", "tissues", COLLAGEN)["Integrity falls with"]))![1]);
+const collagenImpaired = (integrity: number | undefined) => integrity !== undefined && integrity <= collagenImpairedAt;
 
 /** The rows of a medicine table by stable id. */
 export const medicineRules = (table: "diseases" | "wounds" | "pain" | "treatments" | "healing" | "immunity" | "exposure") =>
@@ -118,7 +123,7 @@ export interface Sick {
   courseDays: number | null;
   /** Drawn at exposure: the course day the untreated death risk falls due, or null. Treatment can cancel it. */
   fatalOnDay: number | null;
-  /** Course day a treatment set for recovery of an open-ended course (scurvy on citrus). */
+  /** Course day a treatment set for recovery of an open-ended course. */
   endsOnDay: number | null;
   treated: boolean;
   /** Timing of a fatal draw cannot be placed (no course days or horizon in the row). */
@@ -161,6 +166,8 @@ export interface MedicineState {
   /** World time corresponding to medicine elapsedSeconds = 0, fixed on first bridge/process call. */
   crisisTimeOrigin?: number;
   airActive: Record<string, number>;
+  /** Latest anatomy state; scurvy is a diagnosis over this state, with no course clock. */
+  collagenIntegrity?: number;
   /** Used for a wound's pain when the host does not name the cause. */
   options: { riskAt: number };
 }
@@ -204,7 +211,7 @@ export interface ExposureOptions {
   /** Overrides for a row the table cannot place (incubation "months to years"). */
   incubationDays?: number;
 }
-export interface ExposureResult { infected: boolean; reason: "infected" | "no dose" | "immune" | "quarantined" | "already sick" | "unsupported incubation"; sick?: Sick }
+export interface ExposureResult { infected: boolean; reason: "infected" | "no dose" | "immune" | "quarantined" | "already sick" | "unsupported incubation" | "state-defined diagnosis"; sick?: Sick }
 
 const QUARANTINE_CAUSE = /louse|person to person|droplet/;
 
@@ -215,6 +222,7 @@ export function expose(s: MedicineState, disease: string, dose: number, o: Expos
   if (!(dose >= 0 && dose <= 1)) throw new Error("medicine: dose must be in [0, 1]");
   const hygiene = o.hygiene ?? 1;
   if (!(hygiene >= 0)) throw new Error("medicine: invalid hygiene multiplier");
+  if (disease === "scurvy") return { infected: false, reason: "state-defined diagnosis" };
   const draws = [s.rand(), s.rand(), s.rand(), s.rand(), s.rand()];
   if (s.sick.some(x => x.id === disease)) return { infected: false, reason: "already sick" };
   const imm = s.immunity[disease];
@@ -296,6 +304,7 @@ export function treat(s: MedicineState, treatment: string, target: TreatmentTarg
     return none("not a wound treatment");
   }
   const disease = target.disease, row = libraryRow("medicine", "diseases", disease);
+  if (disease === "scurvy") return none("scurvy follows collagen integrity; citrus intake belongs to nutrition, with no medicine cure clock");
   if (claim.effect === "immunise") {
     const rule = immunityRule(disease);
     if (!rule.inoculation || s.sick.some(x => x.id === disease) || s.immunity[disease]) return none("no inoculation for this disease, or already sick or immune");
@@ -396,7 +405,7 @@ export function inflictWound(s: MedicineState, kind: string, o: WoundOptions = {
 // ---------------------------------------------------------------- healing
 
 export interface HealingFactors {
-  vitCMg?: number; proteinGKgDay?: number; energyBalanceKcalDay?: number; ageYears?: number;
+  collagenIntegrity?: number; proteinGKgDay?: number; energyBalanceKcalDay?: number; ageYears?: number;
   rest?: boolean; workingPart?: boolean; dressedDaily?: boolean; sleepDebtH?: number;
 }
 const healRow = (slugId: string) => libraryRow("medicine", "healing", `medicine.healing.${slugId}`);
@@ -405,7 +414,7 @@ const limit = (r: LibraryRow) => Number(/(?:under|over) (-?[\d.]+)/.exec(String(
 /** The product of the factors that apply (multipliers on healing time); an absent input applies nothing. */
 export function healingMultiplier(f: HealingFactors): number {
   let m = 1;
-  const r = healRow("vitamin-c-reserve-under-300-mg-scurvy"); if (f.vitCMg !== undefined && f.vitCMg < limit(r)) m *= mult(r);
+  const r = healRow("vitamin-c-reserve-under-300-mg-scurvy"); if (collagenImpaired(f.collagenIntegrity)) m *= mult(r);
   const p = healRow("protein-under-0-8-g-kg-day"); if (f.proteinGKgDay !== undefined && f.proteinGKgDay < limit(p)) m *= mult(p);
   const e = healRow("energy-balance-under-500-kcal-day"); if (f.energyBalanceKcalDay !== undefined && f.energyBalanceKcalDay < limit(e)) m *= mult(e);
   const a = healRow("age-over-50");
@@ -419,10 +428,10 @@ export function healingMultiplier(f: HealingFactors): number {
   const d = healRow("sleep-debt-over-24-h"); if (f.sleepDebtH !== undefined && f.sleepDebtH > limit(d)) m *= mult(d);
   return m;
 }
-/** Factors the world already holds for a body: the vitamin C pool, the day's energy balance, the sleep debt. */
+/** Factors the world already holds for a body: collagen integrity, the day's energy balance, the sleep debt. */
 export function worldHealingFactors(w: World, body: string): HealingFactors {
   const b = w.registry.component(body), out = bodyOutputs(b), f: HealingFactors = {};
-  if (b.props.nut_stocked === 1) f.vitCMg = poolLevel(w, body, "vit_c");
+  if (typeof out[COLLAGEN] === "number") f.collagenIntegrity = out[COLLAGEN];
   if (typeof out.energy_balance_day_kcal === "number") f.energyBalanceKcalDay = out.energy_balance_day_kcal;
   if (typeof out.sleep_debt === "number") f.sleepDebtH = out.sleep_debt;
   return f;
@@ -433,6 +442,7 @@ export function worldHealingFactors(w: World, body: string): HealingFactors {
 /** Advance whole days: wounds heal at 1/multiplier of a day a day (paused while infected, reopening at the working-part
  * chance), diseases move through incubation and course, and a due death risk opens a crisis (the host decides). */
 export function advanceDays(s: MedicineState, days: number, factors: HealingFactors = {}) {
+  s.collagenIntegrity = factors.collagenIntegrity;
   for (let i = 0; i < days; i++) {
     s.day++;
     s.elapsedSeconds += DAY;
@@ -445,7 +455,7 @@ export function advanceDays(s: MedicineState, days: number, factors: HealingFact
       if (w.progressDays >= w.healDays) w.healed = true;
     }
     for (const x of [...s.sick]) {
-      if (x.crisis) continue;
+      if (x.id === "scurvy" || x.crisis) continue; // Legacy cases cannot run a parallel scurvy clock.
       x.dayOfStage++;
       if (x.stage === "incubating") { if (x.dayOfStage >= x.incubationDays) { x.stage = "ill"; x.dayOfStage = 0; } continue; }
       if (x.fatalOnDay === x.dayOfStage) {
@@ -533,7 +543,7 @@ export function medicineOutputs(s: MedicineState) {
   const o: Record<string, number | string | null> = {};
   for (const r of libraryTable("medicine", "diseases")) {
     const id = String(r.id), x = s.sick.find(k => k.id === id);
-    o[`medicine.diseases.${id}`] = x ? (x.stage === "ill" ? 2 : 1) : 0;
+    o[`medicine.diseases.${id}`] = id === "scurvy" ? (collagenImpaired(s.collagenIntegrity) ? 2 : 0) : x ? (x.stage === "ill" ? 2 : 1) : 0;
     o[`medicine.lasting_harm.${id}`] = s.lastingHarm[id] ? 1 : 0;
     o[`medicine.immunity.${id}`] = s.immunity[id] ? s.immunity[id].level === "lifelong" ? 2 : 1 : 0;
   }
@@ -544,23 +554,25 @@ export function medicineOutputs(s: MedicineState) {
   const pain = painLevel(s);
   for (const r of libraryTable("medicine", "pain")) o[String(r.id)] = r.id === pain.band ? 1 : 0;
   o["medicine.pain"] = pain.level;
-  o["medicine.sick_count"] = s.sick.length;
+  o["medicine.sick_count"] = s.sick.filter(x => x.id !== "scurvy").length + Number(collagenImpaired(s.collagenIntegrity));
   o["medicine.crises"] = s.crises.length;
   return o;
 }
 
-/** Run after circulation: open wounds with a host rate bleed through circulation's `bleed` (traced and checked there), the
+/** Run after circulation and anatomy: open wounds with a host rate bleed through circulation's `bleed` (traced and checked there), the
  * disease and healing clocks advance a day at a time, and the outputs are published on the body. */
 export function medicineProcess(s: MedicineState, factors: HealingFactors = {}, every = 1): Process {
   return { name: "medicine", every, step(w, dt) {
     if (!Number.isFinite(dt) || dt < 0) throw new Error("medicine: invalid time");
+    const currentFactors = { ...worldHealingFactors(w, s.body), ...factors };
+    s.collagenIntegrity = currentFactors.collagenIntegrity; // Diagnosis updates even at dt=0.
     flushMedicineCrises(w, s);
     for (const x of s.wounds) if (!x.healed && x.rateMlMin !== null) bleed(w, s.body, x.rateMlMin, dt, x.clotting, x.bound);
     const endSeconds = s.elapsedSeconds + dt;
     const days = Math.floor(endSeconds / DAY) - Math.floor(s.elapsedSeconds / DAY);
     if (days) {
       s.elapsedSeconds = Math.floor(s.elapsedSeconds / DAY) * DAY;
-      advanceDays(s, days, { ...worldHealingFactors(w, s.body), ...factors });
+      advanceDays(s, days, currentFactors);
     }
     s.elapsedSeconds = endSeconds;
     flushMedicineCrises(w, s);

@@ -5,8 +5,11 @@ import { Scheduler } from "../src/scheduler.ts";
 import { bodyOutputs } from "../src/physiology.ts";
 import { initialiseCirculation } from "../src/circulation.ts";
 import { libraryRow, libraryTable } from "../src/library.ts";
+import validation from "../data/library/validation.json";
+import { anatomyProcess, assembleBody } from "../src/anatomy.ts";
+import { nutritionProcess, poolLevel, stockPools } from "../src/nutrition.ts";
 import { advanceDays, airConditions, createMedicine, daysRange, diseaseCourse, expose, healingMultiplier, immunityRule, inflictWound,
-  medicineOutputs, medicineProcess, painLevel, resolveCrisis, riskRange, treat, treatmentEfficacy } from "../src/medicine.ts";
+  medicineOutputs, medicineProcess, painLevel, resolveCrisis, riskRange, treat, treatmentEfficacy, worldHealingFactors } from "../src/medicine.ts";
 
 const N = 1000;
 /** Four binomial standard errors around p at N runs: the sampling error of a seeded frequency. */
@@ -29,7 +32,7 @@ describe("the disease rows as numbers", () => {
     const d = diseaseCourse("dysentery");
     expect([d.incubation, d.course, d.risk]).toEqual([{ lo: 1, hi: 7 }, { lo: 7, hi: 14 }, { lo: 0.05, hi: 0.15 }]);
     expect(diseaseCourse("consumption").riskWindowDays).toBe(5 * 365);
-    expect(diseaseCourse("scurvy").recoveryDays).toEqual({ lo: 7, hi: 14 });
+    expect(diseaseCourse("scurvy")).toMatchObject({ incubation: null, course: null, recoveryDays: null, risk: null, riskWindowDays: null });
   });
 });
 
@@ -204,17 +207,9 @@ describe("treatments change outcomes only where the 'Really worked?' column says
         expect(outcome(seed, disease, s => expect(treat(s, t, { disease }).efficacy).not.toBe("worked"))).toBe(base);
     }
   });
-  it("citrus ends scurvy in the row's one to two weeks; purging passes worms only", () => {
-    for (let seed = 1; seed <= 50; seed++) {
-      const s = createMedicine("body", { seed });
-      const x = expose(s, "scurvy", 1, { incubationDays: 0 }).sick!;
-      advanceDays(s, 60); expect(s.sick).toContain(x);
-      expect(treat(s, "lemon-or-lime-juice-fresh-greens", { disease: "scurvy" }).efficacy).toBe("worked");
-      advanceDays(s, 6); expect(s.sick).toContain(x);
-      advanceDays(s, 8); expect(s.sick).toHaveLength(0);
-      expect(s.lastingHarm.scurvy).toBe("old wounds reopen; teeth lost");
-    }
+  it("purging passes worms only; citrus needs nutrition intake rather than a medicine cure clock", () => {
     const s = createMedicine("body");
+    expect(treat(s, "lemon-or-lime-juice-fresh-greens", { disease: "scurvy" }).efficacy).toBe("none");
     expose(s, "worms", 1, { incubationDays: 0 }); expose(s, "dysentery", 1, { incubationDays: 0 });
     const p = "purging-and-emetics-jalap-senna-antimony-ipecacuanha";
     expect(treat(s, p, { disease: "worms" }).efficacy).toBe("worked");
@@ -281,15 +276,15 @@ describe("wounds", () => {
   });
   it("the healing table multiplies the clock", () => {
     expect(healingMultiplier({})).toBe(1);
-    expect(healingMultiplier({ vitCMg: 299 })).toBe(3);
-    expect(healingMultiplier({ vitCMg: 300 })).toBe(1);
+    expect(healingMultiplier({ collagenIntegrity: 0.98 })).toBe(3);
+    expect(healingMultiplier({ collagenIntegrity: 1 })).toBe(1);
     expect(healingMultiplier({ proteinGKgDay: 0.7, energyBalanceKcalDay: -600 })).toBeCloseTo(1.5 * 1.3, 12);
     expect(healingMultiplier({ ageYears: 51 })).toBe(1.3);
     expect(healingMultiplier({ ageYears: 66 })).toBe(1.6);
     expect(healingMultiplier({ rest: true, dressedDaily: true })).toBeCloseTo(0.7 * 0.8, 12);
     expect(healingMultiplier({ sleepDebtH: 30, workingPart: true })).toBeCloseTo(1.2 * 1.5, 12);
     const s = createMedicine("body", { seed: 1 }), w = inflictWound(s, "cut-incised", { infected: false });
-    advanceDays(s, 3, { vitCMg: 100 });
+    advanceDays(s, 3, { collagenIntegrity: 0.98 });
     expect(w.progressDays).toBeCloseTo(1, 12);
   });
   it("working the part reopens at the row's chance a day", () => {
@@ -299,6 +294,86 @@ describe("wounds", () => {
       w.workingPart = true; advanceDays(s, 1); reopened += w.reopened;
     }
     expect(within(reopened, 0.1)).toBe(true);
+  });
+});
+
+describe("vitamin C follows collagen", () => {
+  const DAY = 86400, collagenId = "anatomy.tissues.connective-tissue-collagen";
+  function fixture() {
+    const w = new World(defaultRegistry());
+    const b = w.registry.addComponent({ id: "body", kind: "body", material: "flesh", mass: 70, temperatureC: 37,
+      contents: [], ports: [], condition: { capability: 1, control: 1, accuracy: 1 }, props: { male: 1 } });
+    stockPools(w, b.id);
+    const a = assembleBody(w, b.id), anatomy = anatomyProcess(a), s = createMedicine(b.id);
+    return { w, b, a, anatomy, s, medicine: medicineProcess(s), nutrition: nutritionProcess(b.id, { dayStartH: 0 }) };
+  }
+
+  it("one pathway (2723): fixed collagen fixes healing, depletion acts through collagen, and scurvy has no course clock", () => {
+    const x = fixture(), collagen = x.a.tissues[collagenId];
+    const wound = inflictWound(x.s, "cut-incised", { infected: false });
+    const normal = worldHealingFactors(x.w, x.b.id);
+    stockPools(x.w, x.b.id, { vit_c: 299 / poolLevel(x.w, x.b.id, "vit_c") });
+    x.anatomy.step(x.w, 0); // No daily collagen loss yet.
+    expect(collagen.integrity).toBe(1);
+    expect(healingMultiplier(worldHealingFactors(x.w, x.b.id))).toBe(healingMultiplier(normal));
+    x.medicine.step(x.w, DAY);
+    expect(wound.progressDays).toBe(1);
+    expect(medicineOutputs(x.s)["medicine.diseases.scurvy"]).toBe(0);
+
+    x.anatomy.step(x.w, DAY);
+    expect(collagen.integrity).toBe(0.98);
+    x.medicine.step(x.w, 0); // Diagnosis follows anatomy immediately, without a disease tick.
+    expect(medicineOutputs(x.s)["medicine.diseases.scurvy"]).toBe(2);
+    expect(medicineOutputs(x.s)["medicine.sick_count"]).toBe(1);
+    x.medicine.step(x.w, DAY);
+    expect(wound.progressDays).toBeCloseTo(1 + 1 / 3, 12);
+    stockPools(x.w, x.b.id); // Restoring the pool cannot bypass collagen.
+    expect(healingMultiplier(worldHealingFactors(x.w, x.b.id))).toBe(3);
+    expect(treat(x.s, "lemon-or-lime-juice-fresh-greens", { disease: "scurvy" }).efficacy).toBe("none");
+    expect(expose(x.s, "scurvy", 1, { incubationDays: 0 })).toEqual({ infected: false, reason: "state-defined diagnosis" });
+    x.medicine.step(x.w, 100 * DAY);
+    expect(x.s.sick).toEqual([]);
+    expect(x.s.crises).toEqual([]);
+    expect(x.s.immunity.scurvy).toBeUndefined();
+    expect(x.s.lastingHarm.scurvy).toBeUndefined();
+    expect(medicineOutputs(x.s)["medicine.diseases.scurvy"]).toBe(2);
+    collagen.integrity = 1; // Host-supplied recovery; no unsupported repair kinetics.
+    x.anatomy.step(x.w, 0); x.medicine.step(x.w, 0);
+    expect(medicineOutputs(x.s)["medicine.diseases.scurvy"]).toBe(0);
+    expect(medicineOutputs(x.s)["medicine.sick_count"]).toBe(0);
+    expect(healingMultiplier(worldHealingFactors(x.w, x.b.id))).toBe(1);
+
+    // Even a legacy host-created case cannot advance, cause harm or trigger a crisis.
+    const legacy = createMedicine("body");
+    const oldCase = expose(legacy, "influenza", 1).sick!;
+    oldCase.id = "scurvy";
+    const before = { ...oldCase };
+    advanceDays(legacy, 100);
+    expect(oldCase).toEqual(before);
+    expect(medicineOutputs(legacy)["medicine.diseases.scurvy"]).toBe(0);
+    expect(legacy.crises).toEqual([]);
+  });
+
+  it("validation (2723): the pool at first signs is below the supplied upper bound", () => {
+    // https://en.wikipedia.org/wiki/Scurvy -- supplied validation rows report Iowa
+    // signs at about four weeks and a pool below 300 mg. No time tolerance is supplied.
+    // Onset disagrees with the reference; recorded in flags/nutrition.md (REAL-30).
+    // This checks pool-bound agreement only, not the depletion time or healing rate.
+    const table = validation.vitamin_c_depletion;
+    const pool = table.rows.find(row => row[0] === "validation.vitamin_c_depletion.body-pool-at-signs")!;
+    const upperBound = pool[table.columns.indexOf("High")];
+    const x = fixture();
+    let firstDay: number | null = null, firstPool: number | null = null;
+    for (let day = 1; day <= 365; day++) {
+      x.nutrition.step(x.w, DAY); x.anatomy.step(x.w, DAY); x.medicine.step(x.w, DAY);
+      x.w.t += DAY;
+      if (medicineOutputs(x.s)["medicine.diseases.scurvy"] === 2) {
+        firstDay = day; firstPool = poolLevel(x.w, x.b.id, "vit_c"); break;
+      }
+    }
+    expect(firstDay).not.toBeNull(); expect(firstPool).not.toBeNull();
+    expect(typeof upperBound).toBe("number");
+    expect(firstPool).toBeLessThan(Number(upperBound));
   });
 });
 
