@@ -5,7 +5,6 @@
 import { libraryMeta, libraryRow, libraryTable, type LibraryRow } from "./library.ts";
 import { bodyOutputs } from "./physiology.ts";
 import { bodyMassDelta } from "./nutrition.ts";
-import { saturation } from "./atmosphere.ts";
 import type { World } from "./world.ts";
 import { trackCrisis } from "./crisis.ts";
 import type { Process } from "./scheduler.ts";
@@ -17,6 +16,21 @@ function numberIn(text: unknown, pattern: RegExp = /([\d.]+)/, group = 1): numbe
   return Number(match[group]);
 }
 const normal = (id: string) => numberIn(row("quantities", id)["Normal (70 kg man)"]);
+
+let saturationConstants: { sevK: number; sevC: number } | null = null;
+
+/** Oxygen saturation of haemoglobin by the Severinghaus form, from the arterial PO2 in mmHg. */
+export function saturation(paO2MmHg: number): number {
+  if (!saturationConstants) {
+    const source = row("blood_gas", "saturation-sao2")["Formula or rule"];
+    saturationConstants = {
+      sevK: numberIn(source, /1 \+ (\d+) \/ \(PaO2\^3/),
+      sevC: numberIn(source, /PaO2\^3 \+ (\d+) PaO2/),
+    };
+  }
+  const L = saturationConstants, p = Math.max(0, paO2MmHg);
+  return 1 / (1 + L.sevK / (p * p * p + L.sevC * p));
+}
 
 /** All source rules and normals, including qualitative values, keyed by stable id. */
 export function circulationRules(table: "quantities" | "bleeding" | "delivery_failures" | "homeostasis" | "blood_gas" | "events") {

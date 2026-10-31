@@ -5,8 +5,8 @@ import { libraryRow, libraryMeta, libraryTable } from "../src/library.ts";
 import { defaultRegistry } from "../src/registry.ts";
 import { World } from "../src/world.ts";
 import { bodyOutputs } from "../src/physiology.ts";
-import { saturation, cohbAfter } from "../src/atmosphere.ts";
-import { bleed, bleedFactor, bleedingClass, bleedingEffects, circulationProcess, circulationRules, hazard, initialiseCirculation, loseBlood, normalBloodVolume, oxygenDelivery, regulationLoops } from "../src/circulation.ts";
+import { saturation as atmosphereSaturation, cohbAfter } from "../src/atmosphere.ts";
+import { saturation, bleed, bleedFactor, bleedingClass, bleedingEffects, circulationProcess, circulationRules, hazard, initialiseCirculation, loseBlood, normalBloodVolume, oxygenDelivery, regulationLoops } from "../src/circulation.ts";
 
 function fixture() {
   const w = new World(defaultRegistry());
@@ -199,4 +199,51 @@ describe("one aerobic training pathway (2635)", () => {
     expect(vo2PerKg).toBeGreaterThanOrEqual(Number(norm.Low));
     expect(vo2PerKg).toBeLessThanOrEqual(Number(norm.High));
   });
+});
+
+
+describe("circulation saturation ownership (2725)", () => {
+  it("exports the curve with the three existing atmosphere expectations", () => {
+    expect(atmosphereSaturation).toBe(saturation);
+    expect(saturation(26.9)).toBeCloseTo(0.5, 1);
+    expect(saturation(95)).toBeCloseTo(0.97, 2);
+    expect(saturation(0)).toBe(0);
+  });
+
+  const ref = (id: string) => {
+    const table = validation.oxygen_dissociation;
+    const row = table.rows.find(r => r[0] === `validation.oxygen_dissociation.${id}`)!;
+    return Object.fromEntries(table.columns.map((column, i) => [column, row[i]]));
+  };
+  const accuracy = Number(ref("severinghaus-accuracy").Value);
+
+  it("validation (2725): P50 lies within the recorded normal adult range", () => {
+    // https://derangedphysiology.com/main/cicm-primary-exam/required-reading/respiratory-system/Chapter%201131/p50-value-blood-gas-sample
+    // https://en.wikipedia.org/wiki/Oxygen%E2%80%93hemoglobin_dissociation_curve
+    // The 26.6 mmHg point has no stated tolerance; use the separately sourced range.
+    const range = ref("p50-range"), point = ref("p50");
+    expect(point.Value).not.toBeNull();
+    expect(Number(point.Value)).toBeGreaterThanOrEqual(Number(range.Low));
+    expect(Number(point.Value)).toBeLessThanOrEqual(Number(range.High));
+    expect(saturation(Number(range.Low))).toBeLessThan(0.5);
+    expect(saturation(Number(range.High))).toBeGreaterThan(0.5);
+  });
+
+  // https://litfl.com/oxygen-haemoglobin-dissociation-curve/
+  // https://mobile.fpnotebook.com/Lung/Lab/OxygnStrtn.htm
+  // Accuracy: https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=%22Simple%2C%20accurate%20equations%20for%20human%20blood%20O2%20dissociation%22&format=json&resultType=core
+  // 100 disagrees with its secondary reference bracket even with the
+  // published fit accuracy. Expected failures preserve the unmet checks, not a wider tolerance.
+  for (const po2 of [27, 40, 60, 100]) {
+    const check = po2 === 100 ? it.fails : it;
+    check(`validation (2725): saturation at ${po2} mmHg matches the reference within cited fit accuracy`, () => {
+      const r = ref(`sat-${po2}`);
+      expect(r.source).toBe("open");
+      expect(accuracy).toBeGreaterThan(0);
+      const low = Number(r.Low ?? r.Value) / 100;
+      const high = Number(r.High ?? r.Value) / 100;
+      expect(saturation(po2)).toBeGreaterThanOrEqual(low - accuracy);
+      expect(saturation(po2)).toBeLessThanOrEqual(high + accuracy);
+    });
+  }
 });

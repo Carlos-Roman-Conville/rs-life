@@ -32,6 +32,9 @@ import { C_TO_K, M, MMHG_PER_PA, R_GAS, airDensity, pressureAtAltitude, waterVap
 import { addHeat } from "./world.ts";
 import { libraryRow, type LibraryRow } from "./library.ts";
 import { bodyOutputs, metabolicRateW, oxygenLitresPerMin } from "./physiology.ts";
+import { saturation } from "./circulation.ts";
+// Compatibility export; circulation owns the blood-gas curve.
+export { saturation } from "./circulation.ts";
 
 // ---------------------------------------------------------------------------------------------------------------- the library's numbers
 
@@ -59,7 +62,6 @@ export const OUTSIDE_WATER_KG_PER_KG = 0.012;
 
 interface Lib {
   fo2: number; fco2: number; waterMmHg: number; rq: number;
-  sevK: number; sevC: number;
   cohbPerPpm: number; cohbHalfLifeH: number; cohbVentRef: number;
   veBase: number; vePerMl: number; veOffset: number; veMax: number;
   co2DriveFactor: number; co2DrivePerMmHg: number; paco2Normal: number; co2DriveFails: number; hypoxicBelow: number;
@@ -72,7 +74,7 @@ function lib(): Lib {
   const bg = (id: string) => cell("gasdynamics", "box_model", `gasdynamics.box_model.${id}`, "Formula");
   const bg2 = (id: string, col: string) => cell("circulation", "blood_gas", `circulation.blood_gas.${id}`, col);
   const vent = (id: string) => cell("physiology", "ventilation", `physiology.ventilation.${id}`, "Formula or value");
-  const sat = bg2("saturation-sao2", "Formula or rule"), coh = bg2("carboxyhaemoglobin-cohb", "Formula or rule");
+  const coh = bg2("carboxyhaemoglobin-cohb", "Formula or rule");
   const ve = vent("minute-ventilation"), drive = vent("the-carbon-dioxide-drive");
   const heavy = bg("heavier-gases-pool");
   const heavyIds = [...heavy.matchAll(/([A-Z][A-Za-z0-9]*) \(([\d.]+) x air\)/g)].map(m => m[1]!.toLowerCase());
@@ -83,7 +85,6 @@ function lib(): Lib {
     fco2: grab(baseline("carbon-dioxide-co2", "Dry-air fraction"), /([\d.]+)%/, "the carbon dioxide fraction") / 100,
     waterMmHg: grab(baseline("water-vapour-h2o", "Partial pressure at sea level (mmHg)"), /(\d+)/, "the airway water vapour pressure"),
     rq: grab(bg("oxygen-and-carbon-dioxide-move-together"), /\/ ([\d.]+) \(the respiratory quotient/, "the respiratory quotient"),
-    sevK: grab(sat, /1 \+ (\d+) \/ \(PaO2\^3/, "the Severinghaus constant"), sevC: grab(sat, /PaO2\^3 \+ (\d+) PaO2/, "the Severinghaus linear term"),
     cohbPerPpm: grab(coh, /COHb_eq about ([\d.]+) x ppm \/ (\d+)/, "the COHb equilibrium") / grab(coh, /COHb_eq about ([\d.]+) x ppm \/ (\d+)/, "the COHb equilibrium", 2),
     cohbHalfLifeH: grab(coh, /t_half (\d+) h/, "the COHb half-time"), cohbVentRef: grab(coh, /x VE\/(\d+)/, "the COHb ventilation reference"),
     veBase: grab(ve, /VE = ([\d.]+) \+/, "the resting ventilation"), vePerMl: grab(ve, /\+ ([\d.]+) x \(VO2/, "the ventilation slope"),
@@ -147,12 +148,6 @@ export function altitudeRow(altitudeM: number): LibraryRow {
 export function alveolarPO2(o2Frac: number, pressureMmHg: number, paco2MmHg: number): number {
   const L = lib();
   return Math.max(0, o2Frac * (pressureMmHg - L.waterMmHg) - paco2MmHg / L.rq);
-}
-
-/** Oxygen saturation of haemoglobin by the Severinghaus form, from the arterial PO2 in mmHg. */
-export function saturation(paO2MmHg: number): number {
-  const L = lib(), p = Math.max(0, paO2MmHg);
-  return 1 / (1 + L.sevK / (p * p * p + L.sevC * p));
 }
 
 // ---------------------------------------------------------------------------------------------------------------- respiratory (anatomy.respiratory)
