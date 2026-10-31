@@ -131,7 +131,7 @@ describe('checkpoint 2: supported wound integration; missing kinetics explicitly
     expect(crises[0].source).toContain(String(iv.id));
     expect(w.trace.crises).toEqual(crises);
     expect(assembly.crises).toContain(crises[0]); // the assembly lists the same record
-    declareDeath(w, 'body', 'blood loss'); // only now can a host mark the body dead
+    declareDeath(w, 'body', String(iv.id)); // the host names the crisis it resolves
     expect(body.props.dead).toBe(1);
     expect(crises[0].resolved).toBe('died');
     expect(w.trace.failed()).toEqual([]);

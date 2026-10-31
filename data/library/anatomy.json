@@ -92,6 +92,20 @@
       ["anatomy.species.states-of-being", "states of being", "human", "-", "rex (the forms), proposed (the profile shape)", "open"]
     ]
   },
+  "crisis_floors": {
+    "title": "Organ crisis floors (2633)",
+    "kind": "hypothesis",
+    "conf": "low",
+    "source": "ANATOMY.md section 3a (game design, 2026-10-29), not independent clinical evidence. Level 5; specification and validation gap: gears/anatomy-crisis-floors.md.",
+    "columns": ["id", "Organ", "Floor", "Level", "Source", "source"],
+    "rows": [
+      ["anatomy.crisis_floors.brain", "brain", 0.2, 5, "ANATOMY.md section 3a", "open"],
+      ["anatomy.crisis_floors.heart", "heart", 0.2, 5, "ANATOMY.md section 3a", "open"],
+      ["anatomy.crisis_floors.lungs", "lungs", 0.2, 5, "ANATOMY.md section 3a", "open"],
+      ["anatomy.crisis_floors.liver", "liver", 0.1, 5, "ANATOMY.md section 3a", "open"],
+      ["anatomy.crisis_floors.kidneys", "kidneys", 0.1, 5, "ANATOMY.md section 3a", "open"]
+    ]
+  },
   "respiratory": {
     "title": "The respiratory profile (the lungs' interface to the air; per species)",
     "kind": "science",

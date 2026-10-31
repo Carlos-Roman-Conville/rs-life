@@ -156,6 +156,10 @@ export interface MedicineState {
   immunity: Record<string, Immunity>;
   lastingHarm: Record<string, string>;
   crises: Crisis[];
+  /** Append-only bridge cursor; optional for existing host-created states. */
+  crisisTraceCursor?: number;
+  /** World time corresponding to medicine elapsedSeconds = 0, fixed on first bridge/process call. */
+  crisisTimeOrigin?: number;
   airActive: Record<string, number>;
   /** Used for a wound's pain when the host does not name the cause. */
   options: { riskAt: number };
@@ -175,6 +179,20 @@ export function createMedicine(body: string, options: MedicineOptions = {}): Med
 const between = (rand: () => number, r: Range) => r.lo + Math.floor(rand() * (Math.round(r.hi) - Math.round(r.lo) + 1));
 function emit(s: MedicineState, cause: string, risk: number | null, source: string) {
   s.crises.push({ kind: "crisis", body: s.body, cause, startedAt: s.elapsedSeconds, durationSeconds: 0, day: s.day, risk, source });
+}
+
+/** Flush appended crises once, retaining object identity for resolveCrisis. On the
+ * first call, w.t must correspond to s.elapsedSeconds; call before advancing to
+ * bind a state created at a nonzero world time. Later flushes may be delayed. */
+export function flushMedicineCrises(w: World, s: MedicineState) {
+  s.crisisTimeOrigin ??= w.t - s.elapsedSeconds;
+  let cursor = s.crisisTraceCursor ?? 0;
+  while (cursor < s.crises.length) {
+    const c = s.crises[cursor];
+    c.startedAt += s.crisisTimeOrigin;
+    recordCrisis(w, c);
+    s.crisisTraceCursor = ++cursor;
+  }
 }
 
 // ---------------------------------------------------------------- exposure and onset
@@ -283,7 +301,7 @@ export function treat(s: MedicineState, treatment: string, target: TreatmentTarg
     if (!rule.inoculation || s.sick.some(x => x.id === disease) || s.immunity[disease]) return none("no inoculation for this disease, or already sick or immune");
     const risk = Number(/about (\d+)% died of the inoculation/.exec(String(treatmentRow(id)["Really worked?"]))?.[1]) / 100;
     const draw = s.rand();
-    if (draw < risk) { emit(s, `treatment:${id}:${disease}`, risk, "medicine.treatments inoculation death risk"); return { treatment: id, efficacy: "worked", effect: "immunise", detail: "crisis: died of the inoculation" }; }
+    if (draw < risk) { emit(s, `treatment:${id}:${disease}`, risk, `medicine.treatments.${id}: inoculation death risk`); return { treatment: id, efficacy: "worked", effect: "immunise", detail: "crisis: died of the inoculation" }; }
     s.immunity[disease] = { disease, level: "lifelong", sinceDay: s.day, fadesAfterDays: null, via: "inoculation" };
     return { treatment: id, efficacy: "worked", effect: "immunise", detail: "immune" };
   }
@@ -417,6 +435,7 @@ export function worldHealingFactors(w: World, body: string): HealingFactors {
 export function advanceDays(s: MedicineState, days: number, factors: HealingFactors = {}) {
   for (let i = 0; i < days; i++) {
     s.day++;
+    s.elapsedSeconds += DAY;
     const reopen = Number(/reopen chance (\d+)%\/day/.exec(String(healRow("working-the-wounded-part")["Multiplier on healing time"]))![1]) / 100;
     for (const w of s.wounds) {
       if (w.healed || w.infected) continue;
@@ -432,7 +451,7 @@ export function advanceDays(s: MedicineState, days: number, factors: HealingFact
       if (x.fatalOnDay === x.dayOfStage) {
         x.crisis = true;
         const risk = diseaseCourse(x.id).risk;
-        emit(s, `disease:${x.id}`, risk ? rangePoint(risk, s.options.riskAt) : null, "medicine.diseases untreated death risk");
+        emit(s, `disease:${x.id}`, risk ? rangePoint(risk, s.options.riskAt) : null, `medicine.diseases.${x.id}: untreated death risk`);
         continue;
       }
       if ((x.courseDays !== null && x.dayOfStage >= x.courseDays) || (x.endsOnDay !== null && x.dayOfStage >= x.endsOnDay)) recover(s, x);
@@ -500,7 +519,7 @@ export function airConditions(s: MedicineState, a: AirState) {
   set("respiratory-failure-the-end-state", a.driveFailing && ((sao !== undefined && sao < rfSao) || (a.paco2Mmhg !== undefined && a.paco2Mmhg > rfCo2)) ? 1 : 0);
   for (const id of ["hypoxia-and-asphyxia-suffocation-the-foul-air", "respiratory-failure-the-end-state"]) {
     const key = `medicine.exposure.${id}`, due = id.startsWith("hypoxia") ? out[key] >= 4 : out[key] >= 1;
-    if (due && !s.airActive[key]) { s.airActive[key] = 1; emit(s, `exposure:${id}`, null, `medicine.exposure ${id}`); }
+    if (due && !s.airActive[key]) { s.airActive[key] = 1; emit(s, `exposure:${id}`, null, key); }
     if (!due) delete s.airActive[key];
   }
   return out;
@@ -535,11 +554,16 @@ export function medicineOutputs(s: MedicineState) {
 export function medicineProcess(s: MedicineState, factors: HealingFactors = {}, every = 1): Process {
   return { name: "medicine", every, step(w, dt) {
     if (!Number.isFinite(dt) || dt < 0) throw new Error("medicine: invalid time");
+    flushMedicineCrises(w, s);
     for (const x of s.wounds) if (!x.healed && x.rateMlMin !== null) bleed(w, s.body, x.rateMlMin, dt, x.clotting, x.bound);
-    const days = Math.floor((s.elapsedSeconds + dt) / DAY) - Math.floor(s.elapsedSeconds / DAY);
-    s.elapsedSeconds += dt;
-    if (days) advanceDays(s, days, { ...worldHealingFactors(w, s.body), ...factors });
-    for (const c of s.crises) recordCrisis(w, c); // disease, inoculation and air crises reach the trace here
+    const endSeconds = s.elapsedSeconds + dt;
+    const days = Math.floor(endSeconds / DAY) - Math.floor(s.elapsedSeconds / DAY);
+    if (days) {
+      s.elapsedSeconds = Math.floor(s.elapsedSeconds / DAY) * DAY;
+      advanceDays(s, days, { ...worldHealingFactors(w, s.body), ...factors });
+    }
+    s.elapsedSeconds = endSeconds;
+    flushMedicineCrises(w, s);
     Object.assign(bodyOutputs(w.registry.component(s.body)), medicineOutputs(s));
   } };
 }

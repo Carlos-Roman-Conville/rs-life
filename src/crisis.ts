@@ -5,6 +5,14 @@
  */
 import type { World } from "./world.ts";
 
+export interface DeathRecord {
+  readonly body: string;
+  readonly t: number;
+  readonly cause: string;
+  readonly crisisStartedAt: number;
+  readonly source: string;
+}
+
 export interface Crisis {
   kind: "crisis";
   body: string;
@@ -24,6 +32,8 @@ export interface Crisis {
   remainingCapacity?: number;
   resolvedAt?: number;
   resolved?: "survived" | "died";
+  /** The death ledger lives on the resolving trace record, independent of host fate. */
+  death?: DeathRecord;
 }
 
 export interface CrisisDetail { source: string; risk?: number | null; day?: number; organ?: string; function?: number | null; remainingCapacity?: number }
@@ -40,7 +50,7 @@ export function recordCrisis(w: World, c: Crisis): Crisis {
 /** A condition that holds over time: opens a record when it becomes active, keeps its duration and values current while
  * it lasts, and stamps `resolvedAt` when it ends. One open record per body and cause. */
 export function trackCrisis(w: World, body: string, cause: string, active: boolean, d: CrisisDetail): Crisis | undefined {
-  const open = w.trace.crises.find(c => c.body === body && c.cause === cause && c.resolvedAt === undefined);
+  const open = w.trace.crises.find(c => c.body === body && c.cause === cause && c.resolvedAt === undefined && c.resolved === undefined);
   if (open) {
     open.durationSeconds = w.t - open.startedAt;
     if (d.function !== undefined) open.function = d.function;
@@ -57,12 +67,34 @@ export function trackCrisis(w: World, body: string, cause: string, active: boole
 /** The crises in the trace that belong to a body. */
 export const crisesOf = (w: World, body: string) => w.trace.crises.filter(c => c.body === body);
 
+/** Deaths remain in the trace's crises, including after trace compaction. */
+export const deathsOf = (w: World): DeathRecord[] => w.trace.crises.flatMap(c => c.death ? [c.death] : []);
+export const causeOfDeath = (w: World, body: string): DeathRecord | undefined =>
+  w.trace.crises.find(c => c.death?.body === body)?.death;
+
+/** Supply population.epidemic?.disease for the outbreak being compared (retain its id
+ * for a retrospective comparison). Without that context a disease is not an epidemic.
+ * Organ causes already are the anatomy library's bare row ids. */
+export function deathCategory(cause: string, epidemicDisease?: string): string {
+  const disease = /^disease:(.+)$/.exec(cause)?.[1] ?? /^treatment:[^:]+:(.+)$/.exec(cause)?.[1];
+  if (disease) return `${disease === epidemicDisease ? "epidemic" : "disease"}:${disease}`;
+  if (cause.startsWith("exposure:")) return `medicine.exposure.${cause.slice("exposure:".length)}`;
+  return cause;
+}
+
 /** The only way the engine marks a body dead (`props.dead`, for a host that has decided): it needs a crisis record for the
  * body already in the trace, so nobody dies silently. */
 export function declareDeath(w: World, body: string, cause: string) {
-  const c = crisesOf(w, body).find(x => x.resolved !== "survived");
-  if (!c) throw new Error(`crisis: ${body} cannot die of ${cause} with no crisis record in the trace`);
+  const b = w.registry.component(body);
+  if (b.props.dead || causeOfDeath(w, body)) throw new Error(`crisis: ${body} is already dead`);
+  const c = crisesOf(w, body).find(x => x.cause === cause && x.resolved === undefined && x.resolvedAt === undefined);
+  if (!c) throw new Error(`crisis: ${body} cannot die of ${cause} with no open crisis record for that cause in the trace`);
+  const death: DeathRecord = Object.freeze({ body, t: w.t, cause, crisisStartedAt: c.startedAt, source: c.source });
   c.resolved = "died";
-  w.registry.component(body).props.dead = 1;
+  c.resolvedAt = w.t;
+  c.durationSeconds = w.t - c.startedAt;
+  c.death = death;
+  b.props.dead = 1;
   w.trace.note(w.t, `death: ${body}; ${cause}; after crisis ${c.cause} (${c.source})`, { keep: true }); // (2715)
+  return death;
 }

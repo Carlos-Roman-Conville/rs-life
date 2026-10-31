@@ -17,6 +17,7 @@
  */
 import type { Process } from "./scheduler.ts";
 import type { World } from "./world.ts";
+import { trackCrisis } from "./crisis.ts";
 import type { Component } from "./registry.ts";
 import { KCAL_J } from "./physics.ts";
 import { libraryRow, libraryTable, type LibraryRow } from "./library.ts";
@@ -488,6 +489,8 @@ function closeDay(w: World, bodyId: string, o: NutritionOptions, sweatKg: number
   out.fat_kg = p.fat_kg ?? null; out.glycogen_g = glycogen; out.glycogen_factor = glycogenFactor(glycogen);
   out.energy_balance_day_kcal = balance; out.energy_unplaced_kcal = p.nut_unplaced_kcal;
   out.starvation_limit = (p.fat_kg !== undefined && p.fat_kg <= c.fatFloorKg && unplaced < 0) || b.mass < c.startMassLimit * p.nut_start_mass ? 1 : 0;
+  trackCrisis(w, bodyId, "nutrition.body_composition.starvation-stages", out.starvation_limit === 1,
+    { source: "nutrition.body_composition.starvation-stages; nutrition.body_composition.fat-mass" });
   out.protein_need_g = dailyNeed("protein", male, b.mass);
 }
 

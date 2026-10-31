@@ -158,10 +158,9 @@ export function connectOrganInput(w: World, a: BodyAssembly, organ: string, sour
   a.signals[id] = { component: source, output };
 }
 
-/** Floors cite the host game's ANATOMY.md
- * section 3a (2026-10-29). Reaching a floor opens
- * a crisis immediately; durations are observations for the host, never death rolls. */
-const floors: Record<string, number> = { brain: 0.2, heart: 0.2, lungs: 0.2, liver: 0.1, kidneys: 0.1 };
+/** Level-5 hypotheses, specified in gears/anatomy-crisis-floors.md; the library
+ * is their single numeric home. Crossing a floor opens a crisis, never a death roll. */
+const floors = new Map(libraryTable("anatomy", "crisis_floors").map(r => [String(r.Organ), r]));
 function crisis(w: World, a: BodyAssembly, id: string, active: boolean, value: number | null, capacity: number, source: string) {
   const c = trackCrisis(w, a.body, id, active, { source, organ: id, function: value, remainingCapacity: capacity });
   if (c && !a.crises.includes(c)) a.crises.push(c);
@@ -215,7 +214,9 @@ export function anatomyProcess(a: BodyAssembly): Process {
       if (s.function === null) delete c.props.function; else c.props.function = s.function;
       if (s.function !== null && s.function < 1) a.cascades[id] = { statement: String(s.row["Failure cascade (model)"]),
         kineticsSeconds: typeof s.row["Cascade kinetics (s)"] === "number" ? s.row["Cascade kinetics (s)"] : null };
-      if (floors[id] !== undefined && s.function !== null) crisis(w, a, id, s.function <= floors[id], s.function, 1 - s.damage, "ANATOMY.md section 3a");
+      const floor = floors.get(id);
+      if (floor && s.function !== null) crisis(w, a, id, s.function <= Number(floor.Floor), s.function, 1 - s.damage,
+        `${floor.id}: ${floor.Source}; level ${floor.Level} hypothesis; gears/anatomy-crisis-floors.md`);
     }
     for (const [id, tissue] of Object.entries(a.tissues)) out[id] = fraction(tissue.integrity, id);
     // The bleed class's own crisis is opened by circulation (the row says dying); the assembly lists it with the organ crises.

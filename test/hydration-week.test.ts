@@ -105,7 +105,7 @@ describe('hydration across the checkpoint-1 week (ISO 7730 sweat, breath and ski
     expect(w.trace.crises).toHaveLength(2);
     // a host that decides the body died must find the crisis in the trace; without one the engine refuses
     expect(() => declareDeath(new World(defaultRegistry()), 'body', 'x')).toThrow();
-    declareDeath(w, 'body', 'water exhaustion');
+    declareDeath(w, 'body', 'physiology.hydration.over-10');
     expect(body.props.dead).toBe(1);
     expect(w.trace.failed()).toEqual([]);
   }, 60_000);
