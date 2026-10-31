@@ -482,7 +482,19 @@ export function registerDrugs(w: World) {
 }
 
 /** The amount on board in kg: gut plus central. */
-export function onBoardKg(w: World, bodyId: string, key: string): number { return w.registry.contentMass(w.registry.component(bodyId), sub(key)); }
+export function onBoardKg(w: World, bodyId: string, key: string): number {
+  const p = w.registry.component(bodyId).props;
+  return (p[`neu_gut_${key}`] ?? 0) + (p[`neu_c_${key}`] ?? 0);
+}
+
+/** realism.neurology.pk owns mass; registry contents are only its exact projection. */
+function syncDrugContent(w: World, bodyId: string, key: string) {
+  const b = w.registry.component(bodyId), mass = onBoardKg(w, bodyId, key);
+  const index = b.contents.findIndex(x => x.substance === sub(key));
+  // Replace the projection entry, including any old registry accumulation carry.
+  if (index >= 0) b.contents[index] = { ...b.contents[index]!, mass };
+  else if (mass > 0) b.contents.push({ substance: sub(key), phase: "solid", mass });
+}
 
 /**
  * Take a dose: `amount` in `unit` (default: the unit of the row's standard dose) goes into the gut, traced from "intake".
@@ -494,10 +506,10 @@ export function dose(w: World, bodyId: string, key: string, amount: number, o: {
   registerDrugs(w);
   const b = w.registry.component(bodyId), p = b.props;
   const total = amount * UNIT_KG[unit], kg = o.meal ? total * mealAvailability() : total;
-  w.registry.addContent(b, sub(s.key), "solid", kg);
-  w.trace.record({ t: w.t, process: "dose", quantity: `mass:${sub(s.key)}`, from: "intake", to: bodyId, amount: kg, note: o.meal ? "after a meal" : undefined });
+  w.trace.record({ t: w.t, process: "dose", quantity: `mass:${sub(s.key)}`, from: "intake", to: bodyId, amount: kg, note: o.meal ? "intake to gut after a meal" : "intake to gut" });
   if (kg < total) w.trace.record({ t: w.t, process: "dose", quantity: `mass:${sub(s.key)}`, from: "intake", to: "unabsorbed", amount: total - kg, note: "not available after a meal" });
   p[`neu_gut_${s.key}`] = (p[`neu_gut_${s.key}`] ?? 0) + kg;
+  syncDrugContent(w, bodyId, s.key);
   p[`neu_dose_t_${s.key}`] = w.t;
 }
 
@@ -549,11 +561,13 @@ export function neurologyProcess(body: string, o: NeurologyOptions = {}): Proces
       if (gut0 > 0 || cen0 > 0) {
         const r = pkStep(s, { gutKg: gut0, centralKg: cen0 }, dtMin, b.mass, male, liver);
         p[`neu_gut_${key}`] = r.gutKg; p[`neu_c_${key}`] = r.centralKg;
+        // Internal endpoints keep absorption out of the whole-body boundary ledger.
+        if (r.absorbedKg > 0) w.trace.record({ t: w.t, process: "neurology", quantity: `mass:${sub(key)}`, from: `${body}:gut`, to: `${body}:central`, amount: r.absorbedKg, note: "gut to central" });
         if (r.eliminatedKg > 0) {
-          w.registry.addContent(b, sub(key), "solid", -r.eliminatedKg);
-          w.trace.record({ t: w.t, process: "neurology", quantity: `mass:${sub(key)}`, from: body, to: "elimination", amount: r.eliminatedKg, note: "clearance" });
+          w.trace.record({ t: w.t, process: "neurology", quantity: `mass:${sub(key)}`, from: body, to: "elimination", amount: r.eliminatedKg, note: "central to elimination (clearance)" });
         }
       }
+      syncDrugContent(w, body, key);
       const central = p[`neu_c_${key}`] ?? 0;
       conc[key] = s.accumulates ? null : concentration(s, central, b.mass, male);
       const ec = params.ec50 && key in params.ec50 ? params.ec50[key] : s.ec50;

@@ -64,6 +64,46 @@ describe("the library rows", () => {
 });
 
 describe("alcohol on the Widmark curve", () => {
+  it.each(["alcohol", "caffeine"])("counts %s once through 12 hours, including a second dose", key => {
+    const x = build(), quantity = `mass:drug:${key}`;
+    x.w.conserve(`drug:${key}`, ["body"], 1e-12);
+    const doseKg = key === "alcohol" ? 0.035 : 80e-6;
+    let total = 0;
+    const check = () => {
+      const gut = x.body.props[`neu_gut_${key}`] ?? 0;
+      const central = x.body.props[`neu_c_${key}`] ?? 0;
+      const eliminated = x.w.trace.into("elimination", quantity);
+      expect(Math.abs(gut + central - (total - eliminated))).toBeLessThanOrEqual(1e-12);
+      expect(x.w.registry.contentMass(x.body, `drug:${key}`)).toBe(gut + central);
+      expect(onBoardKg(x.w, "body", key)).toBe(gut + central);
+      const absorbed = x.w.trace.into("body:central", quantity);
+      expect(Math.abs(gut - (total - absorbed))).toBeLessThanOrEqual(1e-12);
+      expect(Math.abs(central - (absorbed - eliminated))).toBeLessThanOrEqual(1e-12);
+    };
+    for (let minute = 0; minute < 12 * 60; minute++) {
+      if (minute === 0 || minute === 6 * 60) {
+        dose(x.w, "body", key, doseKg * 1000, { unit: "g" });
+        total += doseKg;
+        check();
+      }
+      run(x, MIN);
+      check();
+    }
+    expect(x.w.trace.into("body", quantity)).toBe(total);
+    expect(x.w.trace.failed()).toEqual([]);
+  });
+  it("reads compartment mass and repairs a stale registry view on a PK step", () => {
+    const x = build();
+    dose(x.w, "body", "alcohol", 35);
+    x.body.contents.find(c => c.substance === "drug:alcohol")!.mass = 1;
+    expect(onBoardKg(x.w, "body", "alcohol")).toBe(0.035);
+    run(x, MIN);
+    expect(x.w.registry.contentMass(x.body, "drug:alcohol")).toBe(onBoardKg(x.w, "body", "alcohol"));
+    x.body.props.neu_gut_alcohol = 0;
+    x.body.props.neu_c_alcohol = 0;
+    run(x, MIN);
+    expect(x.w.registry.contentMass(x.body, "drug:alcohol")).toBe(0);
+  });
   it("peaks 30 to 90 minutes after 0.5 g/kg in a 70 kg man and clears at 0.015 g/dL an hour", () => {
     const x = build();
     x.w.conserve("drug:alcohol", ["body"], 1e-12);
