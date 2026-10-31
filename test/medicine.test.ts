@@ -8,7 +8,7 @@ import { initialiseCirculation } from "../src/circulation.ts";
 import { libraryRow, libraryTable } from "../src/library.ts";
 import validation from "../data/library/validation.json";
 import { anatomyProcess, assembleBody } from "../src/anatomy.ts";
-import { nutritionProcess, poolLevel, stockPools } from "../src/nutrition.ts";
+import { eat, nutritionProcess, poolLevel, stockPools } from "../src/nutrition.ts";
 import { advanceDays, airConditions, createMedicine, daysRange, diseaseCourse, expose, healingMultiplier, immunityRule, inflictWound,
   medicineOutputs, medicineProcess, painLevel, resolveCrisis, riskRange, treat, treatmentEfficacy, worldHealingFactors } from "../src/medicine.ts";
 
@@ -338,8 +338,7 @@ describe("vitamin C follows collagen", () => {
     expect(x.s.immunity.scurvy).toBeUndefined();
     expect(x.s.lastingHarm.scurvy).toBeUndefined();
     expect(medicineOutputs(x.s)["medicine.diseases.scurvy"]).toBe(2);
-    collagen.integrity = 1; // Host-supplied recovery; no unsupported repair kinetics.
-    x.anatomy.step(x.w, 0); x.medicine.step(x.w, 0);
+    x.anatomy.step(x.w, 14 * DAY); x.medicine.step(x.w, 0);
     expect(medicineOutputs(x.s)["medicine.diseases.scurvy"]).toBe(0);
     expect(medicineOutputs(x.s)["medicine.sick_count"]).toBe(0);
     expect(healingMultiplier(worldHealingFactors(x.w, x.b.id))).toBe(1);
@@ -353,6 +352,49 @@ describe("vitamin C follows collagen", () => {
     expect(oldCase).toEqual(before);
     expect(medicineOutputs(legacy)["medicine.diseases.scurvy"]).toBe(0);
     expect(legacy.crises).toEqual([]);
+  });
+
+  it("scurvy recovery (2760): nutrition intake restores collagen within 7 to 14 days and healing returns to x1", () => {
+    const x = fixture(), collagen = x.a.tissues[collagenId];
+    const stepDay = () => {
+      x.nutrition.step(x.w, DAY); x.anatomy.step(x.w, DAY); x.medicine.step(x.w, DAY);
+      x.w.t += DAY;
+    };
+    for (let day = 0; day < 365 && medicineOutputs(x.s)["medicine.diseases.scurvy"] !== 2; day++) stepDay();
+    expect(medicineOutputs(x.s)["medicine.diseases.scurvy"]).toBe(2);
+    expect(collagen.integrity).toBe(0.98);
+    expect(healingMultiplier(worldHealingFactors(x.w, x.b.id))).toBe(3);
+    const wound = inflictWound(x.s, "cut-incised", { infected: false });
+    x.medicine.step(x.w, DAY);
+    expect(wound.progressDays).toBeCloseTo(1 / 3, 12);
+
+    let intactDay: number | null = null;
+    for (let day = 1; day <= 14; day++) {
+      const before = collagen.integrity;
+      eat(x.w, x.b.id, "limes", 0.2);
+      x.anatomy.step(x.w, 0); x.medicine.step(x.w, 0);
+      expect(collagen.integrity).toBe(before); // Intake cannot bypass tissue repair.
+      if (day === 1) {
+        expect(medicineOutputs(x.s)["medicine.diseases.scurvy"]).toBe(2);
+        expect(healingMultiplier(worldHealingFactors(x.w, x.b.id))).toBe(3);
+      }
+      stepDay();
+      expect(poolLevel(x.w, x.b.id, "vit_c")).toBeGreaterThanOrEqual(300);
+      expect(collagen.integrity).toBeGreaterThan(before);
+      if (collagen.integrity === 1 && intactDay === null) intactDay = day;
+      if (day >= 7) {
+        expect(medicineOutputs(x.s)["medicine.diseases.scurvy"]).toBe(0);
+        expect(healingMultiplier(worldHealingFactors(x.w, x.b.id))).toBe(1);
+      }
+    }
+    expect(intactDay).not.toBeNull();
+    expect(intactDay).toBeGreaterThanOrEqual(7);
+    expect(intactDay).toBeLessThanOrEqual(14);
+    expect(collagen.integrity).toBe(1);
+    const healed = inflictWound(x.s, "cut-incised", { infected: false });
+    stepDay();
+    expect(collagen.integrity).toBe(1); // Recovery is capped at intact tissue.
+    expect(healed.progressDays).toBe(1);
   });
 
   it("validation (2723): the pool at first signs is below the supplied upper bound", () => {

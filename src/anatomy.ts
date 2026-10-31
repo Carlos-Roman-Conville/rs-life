@@ -182,8 +182,17 @@ export function anatomyProcess(a: BodyAssembly): Process {
     a.cascades = {};
     const collagen = a.tissues["anatomy.tissues.connective-tissue-collagen"];
     const collagenRule = String(collagen.row["Integrity falls with"]);
-    if (daily && w.registry.component(a.body).props.nut_stocked === 1 && poolLevel(w, a.body, "vit_c") < number(collagenRule, /under ([\d.]+) mg/))
-      collagen.integrity = Math.max(0, collagen.integrity - daily * number(collagenRule, /integrity -([\d.]+)/));
+    if (daily && w.registry.component(a.body).props.nut_stocked === 1) {
+      const loss = number(collagenRule, /integrity -([\d.]+)/);
+      if (poolLevel(w, a.body, "vit_c") < number(collagenRule, /under ([\d.]+) mg/))
+        collagen.integrity = Math.max(0, collagen.integrity - daily * loss);
+      else {
+        // (2760) Level-4 constant rise: restore the first daily loss over the
+        // recovery rule's upper endpoint; no clinical repair curve is supplied.
+        const recoveryDays = number(collagen.row["Recovery rule"], /intact in ([\d.]+) days/);
+        collagen.integrity = Math.min(1, collagen.integrity + daily * loss / recoveryDays);
+      }
+    }
     for (const [id, tissue] of Object.entries(a.tissues)) {
       out[id] = fraction(tissue.integrity, id);
       bodyOutputs(w.registry.component(tissue.component))[id] = tissue.integrity;
