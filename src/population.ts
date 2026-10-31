@@ -248,7 +248,7 @@ export interface LabourSupply {
   supply(day: number): LabourRow[]
   /** False while a person is aboard, dead or away: the host knows, the engines do not. */
   available(person: string, day: number): boolean
-  /** Person-hours a person or a pool offers for a role today. */
+  /** Person-hours a person or a pool has left after the day's grants (CONTRACTS section 18). */
   hours(source: string, role: string, day: number): number
   /** Person-hours a pool grants a post today: at most `wantedHours` and at most what it has not granted yet. */
   draw(pool: string, role: string, requires: unknown, wantedHours: number, day: number): number
@@ -271,26 +271,35 @@ function labourRows(p: Population, hoursPerDay: number): LabourRow[] {
 /** Pool supply, hours and draw use person*h. Categories use COHORTS ids.
  * Queries read the current population; day keys grants, not historical population snapshots.
  * P1 is role-blind: roles and requires are host concerns until occupations exist.
+ * Throws at construction when two pools share a category, preventing duplicate grants.
  * Keep one provider instance for a population's allocation session. */
 export function populationLabourSupply(p: Population, o: { hoursPerDay: number; pools: Record<string, string[]> }): Pick<LabourSupply, "supply" | "hours" | "draw"> {
   labourRows(p, o.hoursPerDay);
+  const categoryPools = new Map<string, string>();
   const pools = new Map(Object.entries(o.pools).map(([id, categories]) => {
     if (categories.some(c => !COHORTS.includes(c as CohortName))) throw new Error(`population: unknown category in pool ${id}`);
+    for (const category of new Set(categories)) {
+      const owner = categoryPools.get(category);
+      if (owner !== undefined) throw new Error(`population: pools ${owner} and ${id} share category ${category}`);
+      categoryPools.set(category, id);
+    }
     return [id, new Set(categories)] as const;
   }));
   const grants = new Map<number, Map<string, number>>();
   const supply = (_day: number) => labourRows(p, o.hoursPerDay);
-  const hours = (pool: string, _role: string, day: number) => {
+  const capacity = (pool: string, day: number) => {
     const categories = pools.get(pool);
     if (!categories) throw new Error(`population: unknown pool ${pool}`);
     return supply(day).reduce((sum, row) => sum + (categories.has(row.category) ? row.personHours : 0), 0);
   };
-  return { supply, hours, draw(pool, role, _requires, wantedHours, day) {
-    const capacity = hours(pool, role, day);
+  const hours = (pool: string, _role: string, day: number) =>
+    Math.max(0, capacity(pool, day) - (grants.get(day)?.get(pool) ?? 0));
+  return { supply, hours, draw(pool, _role, _requires, wantedHours, day) {
+    const poolCapacity = capacity(pool, day);
     if (!Number.isFinite(wantedHours) || wantedHours < 0) throw new Error("population: wantedHours must be finite and >= 0");
     const daily = grants.get(day) ?? new Map<string, number>();
     const used = daily.get(pool) ?? 0;
-    const granted = Math.min(wantedHours, Math.max(0, capacity - used));
+    const granted = Math.min(wantedHours, Math.max(0, poolCapacity - used));
     daily.set(pool, used + granted);
     grants.set(day, daily);
     return granted;

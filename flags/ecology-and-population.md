@@ -1,5 +1,7 @@
 ## ecology and population (2530)
 
+- (2752) NOTE: hours returns what is left after the day's grants (CONTRACTS section 18); the NOTE (2636) conflict is resolved; pools that share a category are rejected at construction, so a person's hours are granted once.
+
 - UNSUPPORTED: ecology r, K, q and effort for any ground, ECOLOGY.md depletion_rules. The table gives the model and one recovery figure (reef fish 7 years, pelagics 3, turtles 56), not the Caribbean's r or K; the host supplies each stock. `recoveryYears` is the logistic's own ln 16 / r (2.77 / r), which the row rounds to 2.8 / r. There is no extinction threshold or Allee effect: a stock at zero stays at zero. The fished-out catch factor (x0.2) applies to `dailyCatch` (the per-fisher formula), not to a host's explicit catch amount.
 - UNSUPPORTED: ecology price and duty consequences of a fished-out ground ("the port's fish price up", "the fisherman duty yields little"): economy and duties are the game's. The boucanier history row is a note, not a rule; hunting uses the same stock model with the host's rates.
 - UNSUPPORTED: ecology soil rain and labour factors, ECOLOGY.md soil. The `yield` row names a rain and a labour factor but carries only the dry-year figure (under 60% of normal rain halves yields); `dryYearFactor` returns null for other rain and the host supplies both factors. A hurricane's destruction of standing cane and plantains, and the cattle-pen proximity of the manure row, are the host's. The index is clamped to [0, 1] (the table's own range); the amount cut by the clamp is not traced.

@@ -240,8 +240,9 @@ describe("an epidemic through the disease course", () => {
 });
 
 describe("population labour supply (2636)", () => {
-  it("copies the shared declaration blocks character for character", () => {
-    const block = (source: string) => source.match(/export interface LabourRow[^]*?\n}/)![0];
+  it("matches the shared declarations apart from documentation", () => {
+    const block = (source: string) => source.match(/export interface LabourRow[^]*?\n}/)![0]
+      .replace(/\/\*[^]*?\*\//g, "");
     expect(block(readFileSync(new URL("../src/population.ts", import.meta.url), "utf8")))
       .toBe(block(readFileSync(new URL("../../settlement/src/providers.ts", import.meta.url), "utf8")));
   });
@@ -281,7 +282,7 @@ describe("population labour supply (2636)", () => {
     expect(provider.draw("adults", "b", {}, 30, 1)).toBe(20);
     expect(provider.draw("adults", "b", {}, 15, 0)).toBe(5);
     expect(provider.draw("adults", "a", {}, 15, 0)).toBe(0);
-    expect(provider.hours("adults", "b", 0)).toBe(20);
+    expect(provider.hours("adults", "b", 0)).toBe(0);
     expect(provider.draw("empty", "a", {}, 15, 0)).toBe(0);
     expect(() => provider.hours("unknown", "a", 0)).toThrow("unknown pool");
     expect(() => provider.draw("unknown", "a", {}, 1, 0)).toThrow("unknown pool");
@@ -289,6 +290,30 @@ describe("population labour supply (2636)", () => {
     for (const hoursPerDay of [undefined, -1, NaN, Infinity]) {
       expect(() => populationLabourSupply(createPopulation({}), { hoursPerDay: hoursPerDay as number, pools: {} })).toThrow();
     }
+  });
+
+  it("hours after grants (2752) tracks remaining capacity and rejects overlapping pools", () => {
+    const p = createPopulation({ adultsM: 2 });
+    const provider = populationLabourSupply(p, { hoursPerDay: 10, pools: { adults: ["adultsM"] } });
+    const capacity = provider.supply(0).find(row => row.category === "adultsM")!.personHours;
+    expect(provider.hours("adults", "a", 0)).toBe(capacity);
+    const first = provider.draw("adults", "a", null, 6, 0);
+    expect(first).toBe(6);
+    expect(provider.hours("adults", "b", 0)).toBe(capacity - first);
+    expect(provider.supply(0).find(row => row.category === "adultsM")!.personHours).toBe(capacity);
+    const remainder = provider.draw("adults", "b", null, capacity, 0);
+    expect(remainder).toBe(capacity - first);
+    expect(provider.hours("adults", "a", 0)).toBe(0);
+    const exhausted = provider.draw("adults", "a", null, capacity, 0);
+    expect(exhausted).toBe(0);
+    expect(first + remainder + exhausted).toBeLessThanOrEqual(capacity);
+    expect(provider.hours("adults", "a", 1)).toBe(capacity);
+    expect(provider.draw("adults", "a", null, capacity, 1)).toBe(capacity);
+    expect(provider.hours("adults", "a", 1)).toBe(0);
+    expect(provider.hours("adults", "a", 0)).toBe(0);
+    expect(() => populationLabourSupply(p, {
+      hoursPerDay: 10, pools: { first: ["adultsM"], second: ["adultsF", "adultsM"] },
+    })).toThrow("population: pools first and second share category adultsM");
   });
 
   it("validation (2636): reproduces the sourced working-day mean; no historical range is supplied", () => {
