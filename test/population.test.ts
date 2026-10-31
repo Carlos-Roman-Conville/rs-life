@@ -1,8 +1,10 @@
+// Match the repository test convention: Node builtins without ambient Node types.
+const { readFileSync } = (globalThis as unknown as { process: { getBuiltinModule(id: string): { readFileSync(path: URL, encoding: string): string } } }).process.getBuiltinModule("node:fs");
 import { describe, expect, it } from "vitest";
 import { Trace } from "../src/trace.ts";
 import { advanceDays, createMedicine, diseaseCourse, expose, rangePoint, resolveCrisis } from "../src/medicine.ts";
 import validation from "../data/library/validation.json";
-import { ageingRates, createPopulation, elderDeathFactor, famineRule, populationOutputs, settlersPerDay, startEpidemic, tick, total } from "../src/population.ts";
+import { COHORTS, populationLabourSupply, ageingRates, createPopulation, elderDeathFactor, famineRule, populationOutputs, settlersPerDay, startEpidemic, tick, total } from "../src/population.ts";
 
 const rates = { birthRate: 0.2, deathRate: 0.03, childMaleShare: 0.5 };
 const base = () => createPopulation({ children: 300, adultsM: 400, adultsF: 420, elders: 80, transient: 50, foodDays: 100 });
@@ -194,7 +196,7 @@ describe("an epidemic through the disease course", () => {
         }
       }
       expectedSick *= 1000 / ((d.incubation!.hi - d.incubation!.lo + 1) * (d.course!.hi - d.course!.lo + 1));
-      expect(populationOutputs(p)["population.cohorts.labour"]).toBeCloseTo(p.adultsM * (1 - expectedSick / total(p)), 9);
+      expect(populationOutputs(p, 10)["population.cohorts.labour"]).toBeCloseTo(Math.max(0, p.adultsM - expectedSick) * 10, 9);
     }
     expect(ep.susceptible).toBe(0);
   });
@@ -231,8 +233,72 @@ describe("an epidemic through the disease course", () => {
 
   it("outputs labour by library id", () => {
     const p = base();
-    const o = populationOutputs(p);
-    expect(o["population.cohorts.labour"]).toBeCloseTo(820);
+    const o = populationOutputs(p, 10);
+    expect(o["population.cohorts.labour"]).toBeCloseTo(8200);
     expect(o["population.cohorts.children"]).toBe(300);
+  });
+});
+
+describe("population labour supply (2636)", () => {
+  it("copies the shared declaration blocks character for character", () => {
+    const block = (source: string) => source.match(/export interface LabourRow[^]*?\n}/)![0];
+    expect(block(readFileSync(new URL("../src/population.ts", import.meta.url), "utf8")))
+      .toBe(block(readFileSync(new URL("../../settlement/src/providers.ts", import.meta.url), "utf8")));
+  });
+
+  it("applies health once per category and converts all labour to person*h", () => {
+    const p = createPopulation({ children: 20, adultsM: 40, adultsF: 60, elders: 10, health: 0.5 });
+    const provider = populationLabourSupply(p, { hoursPerDay: 8, pools: { all: [...COHORTS] } });
+    for (const row of provider.supply(0)) {
+      expect(row.persons).toBe(p[row.category as typeof COHORTS[number]] * 0.5);
+      expect(row.personHours).toBe(row.persons * 8);
+    }
+    expect(provider.hours("all", "any", 0)).toBe(130 * 0.5 * 8);
+    expect(provider.draw("all", "any", null, 1000, 0)).toBe(130 * 0.5 * 8);
+    expect(populationOutputs(p, 8)["population.cohorts.labour"]).toBe(100 * 0.5 * 8);
+    const source = readFileSync(new URL("../src/population.ts", import.meta.url), "utf8");
+    expect(source).not.toMatch(/worker-days/);
+    expect(source).toContain("person*h");
+  });
+
+  it("excludes deaths in a running batch without treating them as sick again", () => {
+    const p = createPopulation({ elders: 1000, adultsF: 200, foodDays: 100 });
+    const ep = startEpidemic(p, "yellow_fever", 0);
+    ep.batches.push({ day: 0, n: { children: 0, adultsM: 0, adultsF: 0, elders: 100 },
+      outcomes: [{ death: 0, recovery: 0, ill: 0 }, { death: 0.2, recovery: 0, ill: 0.8 }, { death: 0, recovery: 0.8, ill: 0 }] });
+    const r = tick(p, { birthRate: 0, deathRate: 0, childMaleShare: 0.5 });
+    expect(r.epidemicDeaths.elders).toBe(20);
+    expect(ep.batches).toHaveLength(1);
+    const rows = populationLabourSupply(p, { hoursPerDay: 10, pools: {} }).supply(p.day);
+    expect(rows.find(r => r.category === "elders")!.persons).toBeCloseTo(p.elders - 80);
+    expect(rows.find(r => r.category === "adultsF")!.persons).toBe(p.adultsF);
+  });
+
+  it("caps grants across roles and interleaved days and rejects unknown pools", () => {
+    const provider = populationLabourSupply(createPopulation({ adultsM: 2 }),
+      { hoursPerDay: 10, pools: { adults: ["adultsM", "adultsM"], empty: [] } });
+    expect(provider.draw("adults", "a", {}, 15, 0)).toBe(15);
+    expect(provider.draw("adults", "b", {}, 30, 1)).toBe(20);
+    expect(provider.draw("adults", "b", {}, 15, 0)).toBe(5);
+    expect(provider.draw("adults", "a", {}, 15, 0)).toBe(0);
+    expect(provider.hours("adults", "b", 0)).toBe(20);
+    expect(provider.draw("empty", "a", {}, 15, 0)).toBe(0);
+    expect(() => provider.hours("unknown", "a", 0)).toThrow("unknown pool");
+    expect(() => provider.draw("unknown", "a", {}, 1, 0)).toThrow("unknown pool");
+    for (const wanted of [-1, NaN, Infinity]) expect(() => provider.draw("adults", "a", {}, wanted, 0)).toThrow();
+    for (const hoursPerDay of [undefined, -1, NaN, Infinity]) {
+      expect(() => populationLabourSupply(createPopulation({}), { hoursPerDay: hoursPerDay as number, pools: {} })).toThrow();
+    }
+  });
+
+  it("validation (2636): reproduces the sourced working-day mean; no historical range is supplied", () => {
+    // https://mpra.ub.uni-muenchen.de/84828/1/MPRA_paper_84828.pdf
+    // 2645's opened source reports Voth via Stephenson; this is compatibility with a mean, not range validation.
+    const row = validation.working_hours.rows.find(r => r[0] === "validation.working_hours.voth-hours-per-day")!;
+    expect(row[3]).toBeNull();
+    expect(row[4]).toBeNull();
+    const hoursPerDay = Number(row[2]);
+    const supply = populationLabourSupply(createPopulation({ adultsM: 1 }), { hoursPerDay, pools: {} }).supply(0);
+    expect(supply.find(r => r.category === "adultsM")!.personHours).toBe(hoursPerDay);
   });
 });

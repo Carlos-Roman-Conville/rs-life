@@ -16,7 +16,7 @@
       ["population.cohorts.health", "health", "0 to 1", "mean body condition of the pool (food sufficiency, epidemic state)", "proposed", "open"],
       ["population.cohorts.food-days", "food_days", "number", "stores against need (ECOLOGY and the economy)", "proposed", "open"],
       ["population.cohorts.epidemic", "epidemic", "disease id or none, with day", "the current outbreak (MEDICINE parameters)", "proposed", "open"],
-      ["population.cohorts.labour", "labour", "person-days per day", "= adults x health x (1 - sick share)", "proposed", "open"],
+      ["population.cohorts.labour", "labour", "person*h", "= sum of adult categories: cohort x health x (1 - living symptomatic cohort share) x host hoursPerDay", "proposed (Reality, 2026-10-30, group 10)", "open"],
       ["population.cohorts.occupations", "occupations", "map", "how many farmers, fishers, smiths, sailors (GOODS.md 3d labels) the pool supplies", "proposed", "open"]
     ]
   },
@@ -34,7 +34,7 @@
       ["population.tick.food", "Food", "food_days -= 1; if under 0: health -= 0.02 a day; births x0.5; deaths x1.5 (famine)", "ECOLOGY, economy", "proposed", "open"],
       ["population.tick.migration-in", "Migration in", "transient += arrivals (ships in port x crew share ashore); adults += settlers (prosperity x reputation x 0.001 a day)", "economy, town reputation", "proposed", "open"],
       ["population.tick.migration-out", "Migration out", "adults -= leavers (fear of fever x epidemic; the dying port's pressure: Rex, everyone thinking of abandoning the port)", "town state", "proposed", "open"],
-      ["population.tick.labour-supply", "Labour supply", "labour = adults x health x (1 - sick); the town's places draw workers from it; a place with no labour stalls (an input to the economy, not a fate)", "cohorts", "proposed", "open"],
+      ["population.tick.labour-supply", "Labour supply", "personHours = cohort x health x (1 - living symptomatic cohort share) x host hoursPerDay; pools sum their categories in person*h and grants cannot exceed daily pool capacity", "cohorts", "proposed (Reality, 2026-10-30, group 10)", "open"],
       ["population.tick.recruit-pool-refresh", "Recruit pool refresh", "the unnamed candidates (merc, hire) a port offers are drawn from transient and adults by occupation; named characters are never drawn or removed here", "PIRATE.md 7b", "proposed", "open"]
     ]
   }

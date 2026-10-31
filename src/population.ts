@@ -239,13 +239,68 @@ export function tick(p: Population, rates: Rates, o: TickOptions = {}): TickResu
   return { births, backgroundDeaths: background, epidemicDeaths, newCases, illnessDays, aged: { toAdults, toElders }, arrivals, departures, famine };
 }
 
-/** Outputs by library id. Labour = adults x health x (1 - sick share); sick is the expected living,
- * symptomatic fraction of each exposure batch, excluding incubation, deaths and recoveries. */
-export function populationOutputs(p: Population) {
-  const sick = p.epidemic ? p.epidemic.batches.reduce((a, b) =>
-    a + COHORTS.reduce((s, c) => s + b.n[c], 0) * b.outcomes[p.day - b.day].ill, 0) : 0;
-  const pool = p.children + p.adultsM + p.adultsF + p.elders;
-  const sickShare = pool > 0 ? Math.min(1, sick / pool) : 0;
+export interface LabourRow { category: string; persons: number; personHours: number }
+
+export interface LabourSupply {
+  /** The population's supply today by category (adult men, adult women, elders, children: Reality's
+   *  categories); persons = cohort × health × (1 − sick share), health applied once; personHours = persons ×
+   *  the host's hours per day (one number, Settlement's `hoursPerDay`, SET-12). */
+  supply(day: number): LabourRow[]
+  /** False while a person is aboard, dead or away: the host knows, the engines do not. */
+  available(person: string, day: number): boolean
+  /** Person-hours a person or a pool offers for a role today. */
+  hours(source: string, role: string, day: number): number
+  /** Person-hours a pool grants a post today: at most `wantedHours` and at most what it has not granted yet. */
+  draw(pool: string, role: string, requires: unknown, wantedHours: number, day: number): number
+  /** 0..n output factor of a holder in a role; the host maps skill bands to it. */
+  productivity(holder: string, role: string): number
+}
+
+/** Category capacity in person*h; persons is an effective headcount, not a labour unit.
+ * Health multiplies living, non-symptomatic residents once. */
+function labourRows(p: Population, hoursPerDay: number): LabourRow[] {
+  if (!Number.isFinite(hoursPerDay) || hoursPerDay < 0) throw new Error("population: hoursPerDay must be finite and >= 0");
+  return COHORTS.map(category => {
+    const sick = p.epidemic?.batches.reduce((sum, b) =>
+      sum + b.n[category] * (b.outcomes[p.day - b.day]?.ill ?? 0), 0) ?? 0;
+    const persons = Math.max(0, p[category] - sick) * p.health;
+    return { category, persons, personHours: persons * hoursPerDay };
+  });
+}
+
+/** Pool supply, hours and draw use person*h. Categories use COHORTS ids.
+ * Queries read the current population; day keys grants, not historical population snapshots.
+ * P1 is role-blind: roles and requires are host concerns until occupations exist.
+ * Keep one provider instance for a population's allocation session. */
+export function populationLabourSupply(p: Population, o: { hoursPerDay: number; pools: Record<string, string[]> }): Pick<LabourSupply, "supply" | "hours" | "draw"> {
+  labourRows(p, o.hoursPerDay);
+  const pools = new Map(Object.entries(o.pools).map(([id, categories]) => {
+    if (categories.some(c => !COHORTS.includes(c as CohortName))) throw new Error(`population: unknown category in pool ${id}`);
+    return [id, new Set(categories)] as const;
+  }));
+  const grants = new Map<number, Map<string, number>>();
+  const supply = (_day: number) => labourRows(p, o.hoursPerDay);
+  const hours = (pool: string, _role: string, day: number) => {
+    const categories = pools.get(pool);
+    if (!categories) throw new Error(`population: unknown pool ${pool}`);
+    return supply(day).reduce((sum, row) => sum + (categories.has(row.category) ? row.personHours : 0), 0);
+  };
+  return { supply, hours, draw(pool, role, _requires, wantedHours, day) {
+    const capacity = hours(pool, role, day);
+    if (!Number.isFinite(wantedHours) || wantedHours < 0) throw new Error("population: wantedHours must be finite and >= 0");
+    const daily = grants.get(day) ?? new Map<string, number>();
+    const used = daily.get(pool) ?? 0;
+    const granted = Math.min(wantedHours, Math.max(0, capacity - used));
+    daily.set(pool, used + granted);
+    grants.set(day, daily);
+    return granted;
+  } };
+}
+
+/** Outputs by library id. Adult labour is person*h, with required host hoursPerDay.
+ * Living symptomatic cases are excluded per cohort, then health is applied once. */
+export function populationOutputs(p: Population, hoursPerDay: number) {
+  const rows = labourRows(p, hoursPerDay);
   return {
     "population.cohorts.children": p.children,
     "population.cohorts.adults-m-adults-f": adults(p),
@@ -255,6 +310,6 @@ export function populationOutputs(p: Population) {
     "population.cohorts.health": p.health,
     "population.cohorts.food-days": p.foodDays,
     "population.cohorts.epidemic": p.epidemic ? { disease: p.epidemic.disease, day: p.day - p.epidemic.startDay } : null,
-    "population.cohorts.labour": adults(p) * p.health * (1 - sickShare),
+    "population.cohorts.labour": rows.filter(r => r.category === "adultsM" || r.category === "adultsF").reduce((sum, r) => sum + r.personHours, 0),
   };
 }
