@@ -107,11 +107,15 @@ describe("separate training signals and daily adaptation", () => {
     s = adaptMuscleDay(s, day);
     expect(s.tension).toBe(20); expect(s.contractile).toBe(50);
   });
-  it("uses the Banister 42/7 day impulse response and library gains", () => {
-    const impulse = muscularBanisterDay({ fitness: 0, fatigue: 0 }, 10, 40);
-    const next = muscularBanisterDay(impulse, 0, 40);
-    expect(next.fitness).toBeCloseTo(10 * Math.exp(-1 / 42), 12);
-    expect(next.fatigue).toBeCloseTo(10 * Math.exp(-1 / 7), 12);
-    expect(next.performance).toBeCloseTo(40 + next.fitness - 1.3 * next.fatigue, 12);
+  // Source: https://arxiv.org/html/2505.20859 (Busso 1991 means: k1 0.048, k2 0.117, tau1 38, tau2 1.9). The source prints
+  // no daily loads with predicted performance (the impulse profile is only a plot), so this is not a reproduced example:
+  // it checks the closed form for a single impulse.
+  it("worked example: a single impulse decays as load x exp(-t/tau) with the library constants", () => {
+    const impulse = muscularBanisterDay({ fitness: 0, fatigue: 0 }, 10, 104.8);
+    let s = impulse;
+    for (let t = 1; t <= 5; t++) s = muscularBanisterDay(s, 0, 104.8);
+    expect(s.fitness).toBeCloseTo(10 * Math.exp(-5 / 38), 12);
+    expect(s.fatigue).toBeCloseTo(10 * Math.exp(-5 / 1.9), 12);
+    expect(s.performance).toBeCloseTo(104.8 + 0.048 * s.fitness - 0.117 * s.fatigue, 12);
   });
 });

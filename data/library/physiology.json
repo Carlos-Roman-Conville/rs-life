@@ -140,13 +140,13 @@
     "title": "Cardiovascular fitness: the fitness-fatigue model constants",
     "kind": "model",
     "conf": "medium",
-    "source": "Banister impulse-response model (Morton, Fitz-Clarke, Banister 1990): performance = base + k1*fitness - k2*fatigue, each an exponentially decaying sum of daily training loads. The 42-day / 7-day constants are the TrainingPeaks CTL/ATL convention, not a universal fit. PHY-BAN",
+    "source": "Banister impulse-response model (Morton, Fitz-Clarke, Banister 1990): performance = base + k1*fitness - k2*fatigue, each an exponentially decaying sum of daily training loads. Constants: Busso et al. 1991 mean of 8 subjects, as reprinted in Ceddia, Bondell, Taylor 2025 (https://arxiv.org/html/2505.20859, Section 3, Figure 2 caption): 'P0 = 104.8, k1 = 0.048, k2 = 0.117, tau1 = 38, tau2 = 1.9, taken from Table 3, mean values of 8 subjects'. They are per-athlete fits in the study's own training units, not MET-hours. PHY-BAN",
     "columns": ["id", "Parameter", "Value", "Unit", "Mark", "source"],
     "rows": [
-      ["physiology.banister.tau-fitness", "tau_fitness", 42, "days", "proposed", "open"],
-      ["physiology.banister.tau-fatigue", "tau_fatigue", 7, "days", "proposed", "open"],
-      ["physiology.banister.k1-fitness-gain", "k1 (fitness gain)", 1.0, "ratio", "proposed", "open"],
-      ["physiology.banister.k2-fatigue-weight", "k2 (fatigue weight)", 1.3, "ratio", "proposed", "open"],
+      ["physiology.banister.tau-fitness", "tau_fitness", 38, "days", "researched", "open"],
+      ["physiology.banister.tau-fatigue", "tau_fatigue", 1.9, "days", "researched", "open"],
+      ["physiology.banister.k1-fitness-gain", "k1 (fitness gain)", 0.048, "ratio", "researched", "open"],
+      ["physiology.banister.k2-fatigue-weight", "k2 (fatigue weight)", 0.117, "ratio", "researched", "open"],
       ["physiology.banister.daily-load", "Daily load", "sum of MET-hours above 2 MET", "MET-h", "proposed", "open"],
       ["physiology.banister.age-decline-of-the-ceiling", "Age decline of the ceiling", 10, "% per decade from the late 20s (sedentary); 5 to 7 trained", "proposed", "open"]
     ]
