@@ -4,6 +4,7 @@ import { Scheduler } from "../src/scheduler.ts";
 import { defaultRegistry, type Component } from "../src/registry.ts";
 import { KCAL_J, metabolicHeat } from "../src/physics.ts";
 import { libraryRow } from "../src/library.ts";
+import validation from "../data/library/validation.json";
 import { addBodyWater, restingMetabolicRate, bodyOutputs, circadianRow, coreRow, hydrationRow, ingest, metOf, overnight, palRange, physiologyProcess, sleepDebtRow, splitSleepQuality, wbgtCeiling, wbgtClass, type PhysiologyOptions } from "../src/physiology.ts";
 
 interface Setup { roomC?: number; wbgt?: number; body?: Record<string, number>; waterKg?: number; opts?: PhysiologyOptions }
@@ -285,6 +286,25 @@ describe("RMR ownership and overrides", () => {
     expect(() => restingMetabolicRate(x.body, "unknown")).toThrow("unsupported RMR formula");
     expect(() => restingMetabolicRate(x.body, "70 x kg^0.75 garbage")).toThrow("unsupported RMR formula");
     expect(restingMetabolicRate(x.body)).toBeNull();
+  });
+
+  it("validation (2620): Mifflin-St Jeor for the mean subject of 125 measured women lies inside the source's own agreement limits", () => {
+    // https://pmc.ncbi.nlm.nih.gov/articles/PMC7299486/ (J Nutr Sci 2020;9:e17): mean subject 30.7 y, 70.8 kg, BMI 26.1, ventilated-hood
+    // calorimetry, measured mean 1424 kcal/day, Mifflin-St Jeor 95% limits of agreement -300 to +300 kcal/day, 10% criterion for individuals.
+    // Height has no reported mean, so it is derived from the stated mean weight and BMI. Group-mean compatibility only: the source's
+    // 71.2% within 10% is an individual-level share that a single mean subject cannot reproduce.
+    const rows = validation.rmr_measured.rows;
+    const row = (id: string) => rows.find(r => r[0] === `validation.rmr_measured.${id}`)!;
+    const measured = Number(row("women-mean-measured")[2]);
+    const limits = row("women-mifflin-bias-limits");
+    const mass = 70.8, bmi = 26.1;
+    const body = { mass, props: { height_cm: Math.sqrt(mass / bmi) * 100, age_y: 30.7, male: 0 } };
+    const predicted = restingMetabolicRate(body, "Mifflin-St Jeor (PHYSIOLOGY)")!;
+    expect(predicted - measured).toBeGreaterThanOrEqual(Number(limits[3]));
+    expect(predicted - measured).toBeLessThanOrEqual(Number(limits[4]));
+    expect(Math.abs(predicted - measured) / measured).toBeLessThan(0.1);
+    // The default (human) formula is the one validated.
+    expect(restingMetabolicRate(body)).toBe(predicted);
   });
 
   it("keeps the Mifflin coefficients and power-law parser only in physiology throughout src", () => {
