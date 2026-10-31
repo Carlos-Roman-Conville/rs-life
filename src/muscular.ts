@@ -182,15 +182,33 @@ export function adaptMuscleDay(state: MuscleState, day: MuscularDay): MuscleStat
   return s;
 }
 
+const banisterValue = (slug: string) => Number(libraryRow("physiology", "banister", `physiology.banister.${slug}`).Value);
+function banisterPerformance(state: { fitness: number; fatigue: number }, base: number) {
+  return base + banisterValue("k1-fitness-gain") * state.fitness - banisterValue("k2-fatigue-weight") * state.fatigue;
+}
+
+/** Proposed, uncalibrated PHYSIOLOGY.md section 2 clamp; sole training input to circulation.
+ * Normalisation rows reference the existing k rows, never a second fitted constant set. */
+export function trainingFactor(state: { fitness: number; fatigue: number }): number {
+  for (const v of [state.fitness, state.fatigue]) bounded(v, 0, Infinity, "Banister state");
+  const low = banisterValue("training-factor-min"), high = banisterValue("training-factor-max");
+  for (const [normalisation, coefficient] of [["training-k1-normalisation", "k1-fitness-gain"],
+    ["training-k2-normalisation", "k2-fatigue-weight"]]) {
+    if (libraryRow("physiology", "banister", `physiology.banister.${normalisation}`).Value !== `physiology.banister.${coefficient}`)
+      throw new Error("muscular: unsupported Banister normalisation");
+  }
+  return Math.max(low, Math.min(high, banisterPerformance(state, low)));
+}
+
 /** Banister's daily impulse followed by decay on subsequent days; base is host supplied.
  * These are MET-hour sums, not a calibrated VO2 ceiling or the circulation aerobic_today. */
 export function muscularBanisterDay(state: { fitness: number; fatigue: number }, loadMetHours: number, base: number) {
   bounded(loadMetHours, 0, Infinity, "daily load");
   for (const v of [state.fitness, state.fatigue, base]) bounded(v, 0, Infinity, "Banister state");
-  const value = (slug: string) => Number(libraryRow("physiology", "banister", `physiology.banister.${slug}`).Value);
+  const value = banisterValue;
   const fitness = state.fitness * Math.exp(-1 / value("tau-fitness")) + loadMetHours;
   const fatigue = state.fatigue * Math.exp(-1 / value("tau-fatigue")) + loadMetHours;
-  return { fitness, fatigue, performance: base + value("k1-fitness-gain") * fitness - value("k2-fatigue-weight") * fatigue };
+  return { fitness, fatigue, performance: banisterPerformance({ fitness, fatigue }, base) };
 }
 
 export function muscularOutputs(state: MuscularState) {

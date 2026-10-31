@@ -1,5 +1,7 @@
+import validation from "../data/library/validation.json";
 import { describe, it, expect } from "vitest";
-import { libraryMeta, libraryTable } from "../src/library.ts";
+import { muscularBanisterDay, trainingFactor } from "../src/muscular.ts";
+import { libraryRow, libraryMeta, libraryTable } from "../src/library.ts";
 import { defaultRegistry } from "../src/registry.ts";
 import { World } from "../src/world.ts";
 import { bodyOutputs } from "../src/physiology.ts";
@@ -123,5 +125,78 @@ describe("conditional unmeasured hazards", () => {
     expect(bleedFactor()).toBe(2);
     expect(libraryMeta("circulation", "bleeding").source).toContain("(2 - clotting)");
     expect(() => libraryTable("medicine", "bleeding")).toThrow();
+  });
+});
+
+
+describe("one aerobic training pathway (2635)", () => {
+  it("aerobic_today is maximal oxygen delivery in mL O2/min for the 70 kg reference", () => {
+    const { w, out } = fixture();
+    circulationProcess("body").step(w, 0);
+    const maxCo = Number(libraryRow("circulation", "quantities", "circulation.quantities.maximal-cardiac-output")["Normal (70 kg man)"]);
+    expect(out.aerobic_today).toBeCloseTo(maxCo * 1.34 * 15 * saturation(95) * 10, 10);
+  });
+  it("hard training raises mL O2/min only through the explicit trainingFactor", () => {
+    const { w, out } = fixture();
+    let state = { fitness: 0, fatigue: 0 };
+    const options = { trainingFactor: trainingFactor(state), cardiacOutputLMin: 5 };
+    const process = circulationProcess("body", options);
+    process.step(w, 0);
+    const baseline = out.aerobic_today as number;
+    const actual = out["circulation.quantities.oxygen-delivery-do2"];
+    for (let day = 0; day < 30; day++) state = muscularBanisterDay(state, 8, 0);
+    process.step(w, 0);
+    expect(out.aerobic_today).toBe(baseline);
+    options.trainingFactor = trainingFactor(state);
+    process.step(w, 0);
+    expect(out.aerobic_today).toBeGreaterThan(baseline);
+    expect(out.aerobic_today).toBeCloseTo(baseline * options.trainingFactor / trainingFactor({ fitness: 0, fatigue: 0 }), 10);
+    expect(out["circulation.quantities.oxygen-delivery-do2"]).toBe(actual);
+    circulationProcess("body").step(w, 0);
+    expect(out.aerobic_today).toBeCloseTo(oxygenDelivery(20, 15, saturation(95)), 10);
+  });
+  it("rejects invalid factors and clamps the proposed Banister response", () => {
+    for (const factor of [-1, 1.01, NaN, Infinity]) {
+      const { w } = fixture();
+      expect(() => circulationProcess("body", { trainingFactor: factor }).step(w, 0)).toThrow();
+    }
+    expect(trainingFactor({ fitness: 0, fatigue: 100 })).toBe(0.6);
+    expect(trainingFactor({ fitness: 100, fatigue: 0 })).toBe(1);
+    expect(trainingFactor({ fitness: 5, fatigue: 1 })).toBeCloseTo(0.6 + 0.048 * 5 - 0.117, 12);
+    expect(() => trainingFactor({ fitness: NaN, fatigue: 0 })).toThrow();
+  });
+  it("src has no Banister .performance reader outside muscular", () => {
+    interface Fs {
+      readdirSync(p: string, options: { withFileTypes: true }): { name: string; isDirectory(): boolean }[];
+      readFileSync(p: string, encoding: string): string;
+    }
+    const fs = (globalThis as unknown as { process: { getBuiltinModule(id: string): Fs } }).process.getBuiltinModule("node:fs");
+    function scan(dir: string): string[] {
+      return fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
+        const path = `${dir}/${entry.name}`;
+        return entry.isDirectory() ? scan(path) : path.endsWith(".ts") && entry.name !== "muscular.ts"
+          && /(?:\.\s*performance\b|\[\s*["']performance["']\s*\])/.test(fs.readFileSync(path, "utf8")) ? [path] : [];
+      });
+    }
+    expect(scan("src")).toEqual([]);
+  });
+  it("validation (2635): reference DO2 times cited extraction lies in men 20-29 VO2max norms", () => {
+    // Archived opened sources: https://pmc.ncbi.nlm.nih.gov/articles/PMC4919021/
+    // https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=TITLE%3A%22Contribution%20of%20oxygen%20extraction%20fraction%20to%20maximal%20oxygen%20uptake%22&format=json&resultType=core
+    // FRIEND is not verified untrained; 0.9 extraction was reached at 4.5 L/min, not fitted here.
+    const ref = (id: string) => {
+      const table = validation.vo2max_norms;
+      const row = table.rows.find(r => r[0] === `validation.vo2max_norms.${id}`)!;
+      return Object.fromEntries(table.columns.map((column, i) => [column, row[i]]));
+    };
+    const { w, out } = fixture();
+    circulationProcess("body").step(w, 0);
+    const extraction = ref("o2-extraction-fraction-max");
+    const norm = ref("men-20-29-mean");
+    expect(extraction.source).toBe("open"); expect(norm.source).toBe("open");
+    expect(extraction.Value).not.toBeNull();
+    const vo2PerKg = (out.aerobic_today as number) * Number(extraction.Value) / 70;
+    expect(vo2PerKg).toBeGreaterThanOrEqual(Number(norm.Low));
+    expect(vo2PerKg).toBeLessThanOrEqual(Number(norm.High));
   });
 });

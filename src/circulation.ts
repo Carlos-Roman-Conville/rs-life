@@ -73,6 +73,8 @@ export interface CirculationOptions {
   cardiacOutputLMin?: number;
   /** Overrides the library's maximal cardiac output (null until a cited one exists). */
   maximalCardiacOutputLMin?: number;
+  /** Fraction of maximal output from muscular.trainingFactor; default 1. Read each step. */
+  trainingFactor?: number;
   /** Overrides the library's volume tau (null until a cited one exists). */
   volumeTauSeconds?: number;
   kidneyWorking?: boolean;
@@ -176,6 +178,7 @@ export function circulationProcess(body: string, options: CirculationOptions = {
   const tau = options.volumeTauSeconds ?? libTau ?? undefined;
   const maxCo = options.maximalCardiacOutputLMin ?? (typeof libMax === "number" ? libMax : undefined);
   return { name: "circulation", every: options.every ?? 1, step(w, dt) {
+    fraction(options.trainingFactor ?? 1, "training factor");
     finite(dt, "time"); initialiseCirculation(w, body);
     const b = w.registry.component(body), p = b.props, out = bodyOutputs(b);
     if (tau !== undefined && options.kidneyWorking === true) {
@@ -203,7 +206,7 @@ export function circulationProcess(body: string, options: CirculationOptions = {
     out["circulation.quantities.cardiac-output"] = co;
     out["circulation.quantities.oxygen-delivery-do2"] = delivery(co);
     out["circulation.quantities.mean-arterial-pressure"] = effects.pressure;
-    out.aerobic_today = delivery(maxCo);
+    out.aerobic_today = delivery(maxCo === undefined ? undefined : maxCo * (options.trainingFactor ?? 1));
     for (const r of libraryTable("circulation", "bleeding")) out[String(r.id)] = r.id === effects.row.id ? 1 : 0;
     // The row that says dying is unsurvivable untreated: a loss at that class opens a crisis, with the row as its source.
     for (const r of libraryTable("circulation", "bleeding")) {
