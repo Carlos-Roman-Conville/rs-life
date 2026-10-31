@@ -318,6 +318,97 @@ states never conflated. The owner's own tests are not independence: reference da
 check unit that did not write the code, and the registry keeper's re-audit stand apart. A change to a scientific model
 or an architectural assumption is recorded and reviewed before it becomes authoritative.
 
+## Ecosystem foundation (Rex, 2026-10-30)
+
+Registered in `Toolchain/ENGINES.md` ("Terrestrial and aquatic ecosystem foundation", Rex's own words): planned, not
+built. These are subsystems of Physical Reality and Life & Species, never new top-level engines. The research domain
+is the Caribbean of the pirate era; every mechanism is universal. Rex's principle: anything that predates another thing
+exists mathematically so the later thing can emerge from it (literal DNA detail and literal grains of soil excepted);
+represent the causal variables, never every molecule, cell, bee or grain. The chain runs physical Earth, soil and
+nutrients, primary producers, consumers and interactions, then society and economy, with feedback both ways. Mechanics
+(phase 6) stays first, as Rex picked. No design in these phases starts before P1 closes. Values are labelled researched
+or estimate per PLATFORM.md section 4; research is done by belt units with web tools (`Tools: WebSearch, WebFetch`), one
+unit per species or data table, and code units read what they wrote.
+
+## Phase 14: wind and pressure (needs 6 and 7; feeds 13)
+
+**Scope.** Pressure fields and wind from physics: pressure gradients from differential solar heating, Coriolis
+deflection, friction with the surface, sea and land breezes; the inputs phase 13's weather and phase 15's erosion need,
+and the ship's wind. **Research plan.** One unit opens standard atmospheric-dynamics references for the equations and
+constants (geostrophic balance, surface drag) and Caribbean wind climatology (trade-wind speed and direction by month).
+**Acceptance.** The pressure field is conserved mass; wind follows the gradient with the Coriolis sign by hemisphere;
+a seeded Caribbean month gives prevailing easterlies.
+
+**Validation (PLATFORM.md 11a).** Monthly wind speed and direction distributions at a Caribbean station against an
+opened climatology record, with that record's own variability as tolerance.
+
+## Phase 15: geology on two timescales (needs 6 and 9; reads 14)
+
+**Scope.** World formation (once): a plausible geological history, or real Earth data, sets formations, mineral
+distribution with the conditions that predate it, deposits, terrain and parent material for soils; plate tectonics,
+volcanism and lava flow are allowed. Active world (during play): erosion, sediment transport and deposition, runoff,
+mining, occasional geological events, on the Kernel scheduler's longer intervals. **Research plan.** One unit for the
+Caribbean's geological setting (limestone platforms, volcanic arcs) and one for erosion and sediment-transport
+equations with their constants. **Acceptance.** Mass of rock and sediment is conserved through erosion and deposition;
+formation runs once and the active world never re-forms it.
+
+**Validation (PLATFORM.md 11a).** Erosion rates against opened measurements for comparable tropical catchments, with
+the source's range as tolerance.
+
+## Phase 16: soils and nutrient transport (needs 15; reads 13, 14, 11)
+
+**Scope.** Soils emulate real data: weathering of parent material, organic matter, pH, nitrogen, phosphorus,
+potassium, water retention and microbial activity; nutrient gain, loss and spread through decomposition,
+mineralisation, erosion, deposition and runoff. A plant on poor, acid, alkaline or nutrient-poor soil, or without water
+from the hydrology, grows poorly or not at all by its species tolerance, deficiency reducing growth gradually before
+preventing it. **Research plan.** One unit for Caribbean soil profiles (an opened soil survey with pH, N, P, K and water
+retention by soil type) and one for mineralisation and leaching rates. **Acceptance.** Nutrient ledgers close (inputs
+equal uptake, losses and storage change); growth falls gradually with deficiency before it stops.
+
+**Validation (PLATFORM.md 11a).** Simulated soil properties for a place against its opened survey profile, within the
+survey's own ranges.
+
+## Phase 17: plants with the three-record architecture (needs 16 and 10; reads 12, 13)
+
+**Scope.** Plants carry the same architecture and detail as humans: a genetic profile, a developmental state (age, root
+and shoot biomass, leaf area, stored carbohydrate, maturity) and a current organism state (hydration, nutrient status,
+stress, damage, disease); physiology from photosynthesis, respiration, maintenance, water stress, light and
+temperature; reproduction by pollen and seed, spores or vegetative growth, with cross-pollination and inheritance
+through the genetic profile. **Research plan.** Species are added one at a time, each a belt research unit with web
+tools writing a per-species profile of the conditions it needs (light, temperature, water, soil pH and nutrients,
+salinity, growth rates, reproduction), values labelled researched or estimate. First set (proposed): West Indian
+mahogany (*Swietenia mahagoni*), sugarcane (*Saccharum officinarum*), red mangrove (*Rhizophora mangle*), turtle grass
+(*Thalassia testudinum*). **Acceptance.** Each species grows to its sourced size over its sourced time under its sourced
+conditions, and fails gradually outside its tolerance; carbon, water and nutrient ledgers close per plant.
+
+**Validation (PLATFORM.md 11a).** Per species, growth and yield against an opened field study not used for its
+profile, with that study's variability as tolerance.
+
+## Phase 18: pollinators and dispersal as populations (needs 17; reads 13, 14)
+
+**Scope.** Pollinators are populations, never rendered individuals: abundance, foraging range, activity, habitat,
+breeding and mortality at their natural values, to the same mathematical detail as humans. Expected visits start from
+`V_ij = N_i * a_i * p_ij * dt` (Rex's starting approximation), then pollen transfer, compatibility and conditions; wind
+pollination, self-pollination and animal seed dispersal are separate mechanisms. **Research plan.** One unit per
+pollinator group relevant to the first plant set (for example native bees and bats), from opened field studies.
+**Acceptance.** Population ledgers close; visits scale with abundance and activity as the equation states; a plant
+without its pollinator sets no cross-pollinated seed.
+
+**Validation (PLATFORM.md 11a).** Visitation rates against an opened field study for the same pollinator and plant
+family, within its reported range.
+
+## Phase 19: food web and decomposers (needs 17, 18 and 11; reads population)
+
+**Scope.** Algae and plants, then fish and herbivores, then carnivores, with decomposers and detritus so nutrients
+return to soil and water and energy dissipates; Caribbean pirate-era flora and fauna keep the scope. Overfishing, forest
+clearing and runoff change populations through the same equations, never event scripts. Economy reads stocks and
+writes extraction. **Research plan.** One unit per trophic link chosen (for example turtle grass, green turtle and
+predators; reef fish and fishing), from opened ecological studies. **Acceptance.** Energy and nutrient ledgers close
+across the web; removing a link changes the populations it feeds through the equations alone.
+
+**Validation (PLATFORM.md 11a).** Population trajectories after a perturbation (for example a fishing or clearing
+record) against an opened historical or ecological record, with that record's uncertainty as tolerance.
+
 ## Proposed build order (for Rex to pick; mechanics first as he set)
 
 1. **6 mechanics**: the foundation Rex named first; everything physical hangs on it, then 6b contact and impact (it needs 6's bodies and joints, and reads 9's materials when they exist).
@@ -331,6 +422,9 @@ or an architectural assumption is recorded and reviewed before it becomes author
 6. **8 optics**: independent and self-contained, unless combat's visibility rules need it sooner.
 7. **13 weather and climate**: after 7 (evaporation, flow) and 8's solar geometry; the pirate plugin's Markov
    chain keeps running until this phase's acceptance test passes, then becomes a read.
+8. **14 to 19, the ecosystem foundation** (Rex, 2026-10-30): after mechanics, in the order 14, 15, 16, 17, 18, 19, each starting only when
+   P1 has closed and its "needs" have landed; the per-species research units of 17 can run as soon as 17's records exist.
+   (2729)
 
 All of it after P0 Kernel and P1 overlap closure, which are not this keeper's to schedule.
 
