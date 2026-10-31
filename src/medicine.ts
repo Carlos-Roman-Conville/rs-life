@@ -44,7 +44,8 @@ export function riskRange(text: unknown): Range | null {
   const m = /(\d+(?:\.\d+)?)(?: to (\d+(?:\.\d+)?))?%/.exec(c);
   return m ? { lo: Number(m[1]) / 100, hi: Number(m[2] ?? m[1]) / 100 } : null;
 }
-const at = (r: Range, p: number) => r.lo + p * (r.hi - r.lo);
+/** The point of a parsed range used by individual cases and expected-value aggregates. */
+export const rangePoint = (r: Range, p: number) => r.lo + p * (r.hi - r.lo);
 
 export interface DiseaseCourse {
   id: string;
@@ -66,6 +67,31 @@ export function diseaseCourse(id: string): DiseaseCourse {
   return { id, incubation: daysRange(row["Incubation (days)"]), course, risk: riskRange(row["Untreated death risk"]),
     riskWindowDays: course ? course.hi : years ? Number(years[1]) * 365 : null, lastingHarm: String(row["Lasting harm"]),
     recoveryDays: rec ? { lo: Number(rec[1]) * 7, hi: Number(rec[2]) * 7 } : null, row };
+}
+
+export interface DiseaseOutcomeDay {
+  /** Unconditional probabilities of a crisis or recovery on this day since exposure. */
+  death: number;
+  recovery: number;
+  /** Probability of being alive and ill after this day (incubation excluded). */
+  ill: number;
+}
+
+/** Exact expectation of expose/advanceDays when every untreated crisis is counted as a death.
+ * Index 0 is exposure, before advancing. Incubation and course are uniform integer draws; a fatal
+ * crisis is uniform on 1..course. Null means the row cannot place an individual course in time. */
+export function diseaseOutcomeDays(d: DiseaseCourse, risk: number): DiseaseOutcomeDay[] | null {
+  if (!d.course || !d.incubation) return null;
+  const days = Array.from({ length: d.incubation.hi + d.course.hi + 1 }, () => ({ death: 0, recovery: 0, ill: 0 }));
+  const weight = 1 / ((d.incubation.hi - d.incubation.lo + 1) * (d.course.hi - d.course.lo + 1));
+  for (let inc = d.incubation.lo; inc <= d.incubation.hi; inc++) {
+    for (let course = d.course.lo; course <= d.course.hi; course++) {
+      days[inc + course].recovery += weight * (1 - risk);
+      for (let day = 1; day <= course; day++) days[inc + day].death += weight * risk / course;
+      for (let day = 0; day < course; day++) days[inc + day].ill += weight * (1 - risk * day / course);
+    }
+  }
+  return days;
 }
 
 // ---------------------------------------------------------------- immunity
@@ -181,7 +207,7 @@ export function expose(s: MedicineState, disease: string, dose: number, o: Expos
   const inc = o.incubationDays ?? (c.incubation ? between(() => draws[1], c.incubation) : null);
   if (inc === null) return { infected: false, reason: "unsupported incubation" };
   const courseDays = c.course ? between(() => draws[2], c.course) : null;
-  const risk = c.risk ? at(c.risk, s.options.riskAt) : null;
+  const risk = c.risk ? rangePoint(c.risk, s.options.riskAt) : null;
   const window = courseDays ?? c.riskWindowDays;
   const fatal = risk !== null && draws[3] < risk;
   const sick: Sick = { id: disease, stage: inc === 0 ? "ill" : "incubating", dayOfStage: 0, incubationDays: inc, courseDays,
@@ -341,7 +367,7 @@ export function inflictWound(s: MedicineState, kind: string, o: WoundOptions = {
   const burn = /per (\d+)% of body burned/.exec(text);
   const w: Wound = { n: s.wounds.length, kind: id, bleedingClass: classes.length ? classes[Math.min(classes.length - 1, Math.floor(severity * classes.length))] : null,
     internal: /internal/.test(text), burnFluidClassIIUnits: burn && o.burnedPct !== undefined ? o.burnedPct / Number(burn[1]) : null,
-    rateMlMin: o.rateMlMin ?? null, clotting: o.clotting ?? 0, bound: false, open, infected: o.infected ?? draws[2] < at(inf, s.options.riskAt),
+    rateMlMin: o.rateMlMin ?? null, clotting: o.clotting ?? 0, bound: false, open, infected: o.infected ?? draws[2] < rangePoint(inf, s.options.riskAt),
     healDays: heal.lo + Math.floor(draws[1] * (heal.hi - heal.lo + 1)), progressDays: 0, healed: false, reopened: 0,
     painCause: null, workingPart: false, resting: false };
   w.painCause = o.painCause ?? defaultPainCause(id, w.bleedingClass, o.variant);
@@ -406,7 +432,7 @@ export function advanceDays(s: MedicineState, days: number, factors: HealingFact
       if (x.fatalOnDay === x.dayOfStage) {
         x.crisis = true;
         const risk = diseaseCourse(x.id).risk;
-        emit(s, `disease:${x.id}`, risk ? at(risk, s.options.riskAt) : null, "medicine.diseases untreated death risk");
+        emit(s, `disease:${x.id}`, risk ? rangePoint(risk, s.options.riskAt) : null, "medicine.diseases untreated death risk");
         continue;
       }
       if ((x.courseDays !== null && x.dayOfStage >= x.courseDays) || (x.endsOnDay !== null && x.dayOfStage >= x.endsOnDay)) recover(s, x);

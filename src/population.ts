@@ -6,7 +6,7 @@
  * FLAGS.md.
  */
 import { libraryRow } from "./library.ts";
-import { diseaseCourse, immunityRule } from "./medicine.ts";
+import { diseaseCourse, diseaseOutcomeDays, immunityRule, rangePoint, type DiseaseOutcomeDay } from "./medicine.ts";
 import type { Trace } from "./trace.ts";
 
 const DAY = 86400;
@@ -37,9 +37,13 @@ export interface Epidemic {
   startDay: number;
   /** Share of the susceptible pool newly sick per day (the disease's catch rate: the host's). */
   catchRate: number;
-  /** People who fell ill by cohort, in the order of COHORTS, one entry per day of the outbreak that is still running. */
-  batches: { day: number; n: Record<CohortName, number> }[];
-  /** Share of the pool who have fallen ill so far (cases / pool at the time, summed). */
+  /** Exposure batches and their medicine-owned outcome probabilities by day since exposure. */
+  batches: { day: number; n: Record<CohortName, number>; outcomes: DiseaseOutcomeDay[] }[];
+  /** Resident pool at outbreak start; transients are outside the epidemic. */
+  initialPool: number;
+  /** Members of that pool neither initially seasoned nor caught in this outbreak. */
+  susceptible: number;
+  /** Share of the initial pool caught so far, including recovered and dead cases. */
   caught: number;
 }
 
@@ -68,12 +72,16 @@ export function createPopulation(c: Partial<Pick<Population, CohortName | "seaso
 export const total = (p: Population) => p.children + p.adultsM + p.adultsF + p.elders + p.transient;
 export const adults = (p: Population) => p.adultsM + p.adultsF;
 
-/** Starts an outbreak. The disease needs a numeric course (the row's days); the host gives the catch rate. */
+/** Starts a first-infection outbreak in the current resident pool. Exposure runs through the row's
+ * maximum course day; incubation and each case's course continue afterwards. The host gives the catch rate. */
 export function startEpidemic(p: Population, disease: string, catchRate: number): Epidemic {
   const d = diseaseCourse(disease);
   if (!d.course) throw new Error(`population: ${disease} has no course in days; an epidemic of it is unsupported`);
-  if (!(catchRate >= 0)) throw new Error("population: catchRate must be >= 0");
-  p.epidemic = { disease, startDay: p.day, catchRate, batches: [], caught: 0 };
+  if (!d.incubation) throw new Error(`population: ${disease} has no incubation in days; an epidemic of it is unsupported`);
+  if (!(catchRate >= 0 && catchRate <= 1)) throw new Error("population: catchRate must be in [0, 1]");
+  const initialPool = total(p) - p.transient;
+  p.epidemic = { disease, startDay: p.day, catchRate, batches: [], initialPool,
+    susceptible: initialPool * (1 - p.seasonedShare), caught: 0 };
   return p.epidemic;
 }
 
@@ -88,7 +96,7 @@ export interface TickOptions {
   /** Adults leaving this day, by sex (fear of fever, the dying port). */
   leaversM?: number;
   leaversF?: number;
-  /** Where in the disease row's course and risk range this outbreak falls (0 low .. 1 high). Default the middle. */
+  /** Where in the disease row's risk range new cases fall (0 low .. 1 high). Default the middle. */
   riskAt?: number;
   trace?: Trace;
 }
@@ -98,6 +106,8 @@ export interface TickResult {
   backgroundDeaths: Record<CohortName, number>;
   epidemicDeaths: Record<CohortName, number>;
   newCases: number;
+  /** Expected person-days of illness during this tick, excluding incubation and ending at death or recovery. */
+  illnessDays: number;
   aged: { toAdults: number; toElders: number };
   arrivals: number;
   departures: number;
@@ -106,7 +116,6 @@ export interface TickResult {
 
 const zero = (): Record<CohortName, number> => ({ children: 0, adultsM: 0, adultsF: 0, elders: 0 });
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
-const point = (r: { lo: number; hi: number }, p: number) => r.lo + p * (r.hi - r.lo);
 
 /** The row's famine terms: health -0.02 a day, births x0.5, deaths x1.5. */
 export function famineRule() {
@@ -126,6 +135,8 @@ export const settlersPerDay = (prosperity: number, reputation: number) =>
 /** One day, in the order of the tick table: births, background deaths, epidemic, ageing, food, migration. Rates act on the
  * counts at the start of the day. */
 export function tick(p: Population, rates: Rates, o: TickOptions = {}): TickResult {
+  const riskAt = o.riskAt ?? 0.5;
+  if (!(riskAt >= 0 && riskAt <= 1)) throw new Error("population: riskAt must be in [0, 1]");
   const trace = o.trace;
   const t = (p.day + 1) * DAY;
   const start = total(p);
@@ -145,38 +156,44 @@ export function tick(p: Population, rates: Rates, o: TickOptions = {}): TickResu
   const background = zero();
   for (const c of COHORTS) background[c] = startCounts[c] * rates.deathRate / YEAR * deathFactor * (c === "elders" ? elderDeathFactor() : 1);
 
-  // Epidemic: new cases from the susceptible pool, deaths from the disease's risk spread over its course days.
+  // Epidemic: first exposures from the remaining susceptible pool, with medicine's full timing distribution.
   const epidemicDeaths = zero();
   let newCases = 0;
+  let illnessDays = 0;
   const ep = p.epidemic;
   if (ep) {
     const d = diseaseCourse(ep.disease);
-    const at = o.riskAt ?? 0.5;
-    const courseDays = Math.max(1, Math.round(point(d.course!, at)));
+    const exposureDays = d.course!.hi;
     const seasoned = immunityRule(ep.disease).level === "lifelong";
     const pool = startCounts.children + startCounts.adultsM + startCounts.adultsF + startCounts.elders;
     const day = p.day - ep.startDay;
-    if (day < courseDays && pool > 0) {
-      // The sick share rises by catch rate x (1 - seasoned share), never beyond those not yet caught or immune.
-      const share = Math.min(ep.catchRate * (1 - p.seasonedShare), Math.max(0, 1 - p.seasonedShare - ep.caught));
+    if (day < exposureDays && pool > 0 && ep.susceptible > 0) {
+      // Deaths and recoveries are already caught. Neither removes a second share of susceptibles.
+      newCases = Math.min(ep.susceptible, pool) * ep.catchRate;
       const n = zero();
-      for (const c of COHORTS) n[c] = startCounts[c] * share;
-      ep.batches.push({ day: p.day, n });
-      ep.caught += share;
-      newCases = pool * share;
+      for (const c of COHORTS) n[c] = startCounts[c] / pool * newCases;
+      const risk = d.risk ? rangePoint(d.risk, riskAt) : 0;
+      if (newCases > 0) ep.batches.push({ day: p.day, n, outcomes: diseaseOutcomeDays(d, risk)! });
+      ep.susceptible -= newCases;
+      ep.caught += newCases / ep.initialPool;
     }
-    const risk = d.risk ? point(d.risk, at) : 0;
-    const survivorsAdults = { v: 0 };
+    let survivorsAdults = 0;
     ep.batches = ep.batches.filter(b => {
       const age = p.day - b.day;
-      for (const c of COHORTS) epidemicDeaths[c] += Math.min(b.n[c] * risk / courseDays, startCounts[c] - background[c]);
-      if (age + 1 >= courseDays) { survivorsAdults.v += (b.n.adultsM + b.n.adultsF) * (1 - risk); return false; }
-      return true;
+      const next = b.outcomes[age + 1];
+      for (const c of COHORTS) {
+        epidemicDeaths[c] += b.n[c] * next.death;
+        illnessDays += b.n[c] * b.outcomes[age].ill;
+      }
+      survivorsAdults += (b.n.adultsM + b.n.adultsF) * next.recovery;
+      return age + 1 < b.outcomes.length - 1;
     });
+    for (const c of COHORTS) epidemicDeaths[c] = Math.min(epidemicDeaths[c], Math.max(0, startCounts[c] - background[c]));
     // Survivors of a lifelong-immunity disease join the seasoned share of the adults.
     const adultsNow = startCounts.adultsM + startCounts.adultsF;
-    if (seasoned && adultsNow > 0) p.seasonedShare = clamp01((p.seasonedShare * adultsNow + survivorsAdults.v) / adultsNow);
-    if (!ep.batches.length && day + 1 >= courseDays) p.epidemic = null;
+    const adultsLeft = adultsNow - epidemicDeaths.adultsM - epidemicDeaths.adultsF;
+    if (seasoned && adultsLeft > 0) p.seasonedShare = clamp01((p.seasonedShare * adultsNow + survivorsAdults) / adultsLeft);
+    if (!ep.batches.length && day + 1 >= exposureDays) p.epidemic = null;
   }
 
   // Ageing between cohorts.
@@ -219,13 +236,14 @@ export function tick(p: Population, rates: Rates, o: TickOptions = {}): TickResu
   rec("children", "adults", toAdults, "ageing");
   rec("adults", "elders", toElders, "ageing");
   trace?.check(t, "people", start + births + arrivals - deathsBack - deathsEpi - departures, total(p), 1e-9 * Math.max(1, start));
-  return { births, backgroundDeaths: background, epidemicDeaths, newCases, aged: { toAdults, toElders }, arrivals, departures, famine };
+  return { births, backgroundDeaths: background, epidemicDeaths, newCases, illnessDays, aged: { toAdults, toElders }, arrivals, departures, famine };
 }
 
-/** Outputs by library id. Labour = adults x health x (1 - sick share); the sick are the cases in the running
- * outbreak's batches (not yet reduced by the deaths among them). */
+/** Outputs by library id. Labour = adults x health x (1 - sick share); sick is the expected living,
+ * symptomatic fraction of each exposure batch, excluding incubation, deaths and recoveries. */
 export function populationOutputs(p: Population) {
-  const sick = p.epidemic ? p.epidemic.batches.reduce((a, b) => a + COHORTS.reduce((s, c) => s + b.n[c], 0), 0) : 0;
+  const sick = p.epidemic ? p.epidemic.batches.reduce((a, b) =>
+    a + COHORTS.reduce((s, c) => s + b.n[c], 0) * b.outcomes[p.day - b.day].ill, 0) : 0;
   const pool = p.children + p.adultsM + p.adultsF + p.elders;
   const sickShare = pool > 0 ? Math.min(1, sick / pool) : 0;
   return {
