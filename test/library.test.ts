@@ -48,3 +48,13 @@ describe("the scientific data library", () => {
     }
   });
 });
+
+it("each threshold once (2727): species hypoxia and hypercapnia numbers have one owning library row", () => {
+  const rows = Object.values(LIBRARY).flatMap(doc => tables(doc).flatMap(([, t]) => t.rows));
+  for (const pattern of [/\b16\s*%/, /(?:^|[^\d.])3\s*%/]) {
+    // Only gas threshold cells: unrelated percentages (wind, wounds, chemistry yields) are not gas tolerances.
+    const matches = rows.filter(r => /gas-tolerances-species|medicine.exposure.(hypoxia|hypercapnia)|atmosphere.thresholds_layering|^(o2|co2)$/.test(String(r[0])))
+      .filter(r => r.slice(1).some(c => typeof c === "string" && pattern.test(c)));
+    expect(matches.map(r => r[0])).toEqual(["anatomy.respiratory.gas-tolerances-species"]);
+  }
+});

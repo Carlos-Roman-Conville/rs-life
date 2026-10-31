@@ -1,3 +1,4 @@
+import { airContents, breathingProcess, gasThresholds, gasTolerances } from "../src/atmosphere.ts";
 import { describe, expect, it } from "vitest";
 import { defaultRegistry } from "../src/registry.ts";
 import { World } from "../src/world.ts";
@@ -497,4 +498,52 @@ describe("the air conditions of the exposure table", () => {
     expect(s.crises.at(-1)!.cause).toBe("exposure:respiratory-failure-the-end-state");
     expect(Object.keys(airConditions(s, {}))).toHaveLength(libraryTable("medicine", "exposure").length);
   });
+});
+
+ it("one effect in medicine (2727): air and species data produce one combined hypoxia condition", () => {
+  const w = new World(defaultRegistry());
+  const b = w.registry.addComponent({ id: "body", kind: "body", material: "flesh", mass: 70, temperatureC: 37,
+    contents: [], ports: [], condition: { capability: 1, control: 1, accuracy: 1 }, props: { male: 1 } });
+  const contents = airContents(100, 101325, 20);
+  // Replace oxygen with nitrogen mole for mole to obtain the requested fraction.
+  const total = contents.reduce((n, c) => n + c.mass / w.registry.substance(c.substance).molarMass, 0);
+  const oxygen = contents.find(c => c.substance === "o2")!, nitrogen = contents.find(c => c.substance === "n2")!;
+  const removed = oxygen.mass / w.registry.substance("o2").molarMass - total * 0.15;
+  oxygen.mass -= removed * w.registry.substance("o2").molarMass;
+  nitrogen.mass += removed * w.registry.substance("n2").molarMass;
+  w.registry.addComponent({ id: "room", kind: "room", material: "air_mass", mass: 100, temperatureC: 20,
+    contents, ports: [], condition: { capability: 1, control: 1, accuracy: 1 }, props: { pressurePa: 101325 } });
+  stockPools(w, b.id);
+  const a = assembleBody(w, b.id), s = createMedicine(b.id), out = bodyOutputs(b);
+  breathingProcess(b.id, "room", { met: 1 }).step(w, 0);
+  anatomyProcess(a).step(w, 0);
+  expect(out.o2_frac).toBeCloseTo(0.15, 12);
+  expect(Object.keys(out).filter(k => k.includes("hypoxia"))).toEqual([]);
+  medicineProcess(s).step(w, 0);
+  const key = "medicine.exposure.hypoxia-and-asphyxia-suffocation-the-foul-air";
+  expect(out[key]).toBe(1);
+  expect(Object.entries(out).filter(([k, v]) => k.startsWith("medicine.exposure.") && Number(v) > 0)).toEqual([[key, 1]]);
+  medicineProcess(s).step(w, 0);
+  expect(out[key]).toBe(1);
+  expect(s.crises).toHaveLength(0);
+});
+
+it("validation (2727): exposure references agree where comparable and identify the retained judgement mismatch", () => {
+  const ref = (id: string) => validation.gas_exposure_limits.rows.find(r => r[0] === `validation.gas_exposure_limits.${id}`)!;
+  const oxygen = gasThresholds("o2");
+  // https://www.osha.gov/laws-regs/regulations/standardnumber/1915/1915.11
+  expect(oxygen[0]!.at).toBe(ref("o2-deficient")[2]);
+  // https://ehs.lbl.gov/service/chemical-lab-safety/oxygen-deficiency-hazards-and-asphyxiation/
+  expect(oxygen[2]!.at).toBeGreaterThanOrEqual(Number(ref("o2-unconsciousness")[3]));
+  expect(oxygen[2]!.at).toBeLessThanOrEqual(Number(ref("o2-unconsciousness")[4]));
+  // The retained judgement label is OUTSIDE the reference band; this is a discrepancy check, not validation of that label.
+  expect(gasTolerances().hypoxiaO2Pct).toBeGreaterThan(Number(ref("o2-impaired-judgement")[4]));
+  // https://www.osha.gov/laws-regs/standardinterpretations/2007-04-02-0
+  expect(oxygen[3]!.at).toBe(ref("o2-convulsions-death")[2]);
+  // https://www.cdc.gov/niosh/npg/npgd0103.html -- exposure limits do not establish symptom onset.
+  const co2 = gasTolerances().hypercapniaCo2Pct * 1e4;
+  expect(co2).toBe(ref("co2-niosh-rel-st")[2]);
+  expect(co2).toBeGreaterThan(Number(ref("co2-niosh-rel-twa")[2]));
+  expect(co2).toBeGreaterThan(Number(ref("co2-osha-pel")[2]));
+  expect(co2).toBeLessThan(Number(ref("co2-idlh")[2]));
 });

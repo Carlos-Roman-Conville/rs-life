@@ -4,6 +4,7 @@
  * is a `crisis` record with its cause: the engine never kills, the host decides (`resolveCrisis`). Blood leaves a wound
  * through circulation's `bleed`, so the volume ledger stays traced. Numbers the tables do not carry are in FLAGS.md.
  */
+import { gasTolerances } from "./atmosphere.ts";
 import { libraryColumns, libraryRow, libraryTable, type LibraryRow } from "./library.ts";
 import { bodyOutputs } from "./physiology.ts";
 import { bleed } from "./circulation.ts";
@@ -496,7 +497,7 @@ export function painLevel(s: MedicineState) {
 // ---------------------------------------------------------------- the air conditions of the `exposure` table
 
 export interface AirState {
-  sao2?: number; paco2Mmhg?: number; airCo2Pct?: number; cohb?: number; smokeMgM3?: number;
+  airO2Pct?: number; sao2?: number; paco2Mmhg?: number; airCo2Pct?: number; cohb?: number; smokeMgM3?: number;
   so2Ppm?: number; h2sPpm?: number; lowPressureDays?: boolean; driveFailing?: boolean;
 }
 const exposureRow = (id: string) => libraryRow("medicine", "exposure", `medicine.exposure.${id}`);
@@ -513,8 +514,8 @@ export function airConditions(s: MedicineState, a: AirState) {
   const rf = exposureRow("respiratory-failure-the-end-state");
   const sao = a.sao2, hypLimit = first(hyp["The pattern that defines it"], /SaO2 under ([\d.]+)/);
   const [confused, unconscious, dead] = [/confusion at ([\d.]+)/, /unconscious at ([\d.]+)/, /death under ([\d.]+)/].map(re => first(hyp.Course, re));
-  set("hypoxia-and-asphyxia-suffocation-the-foul-air", sao === undefined || sao >= hypLimit ? 0 : 1 + Number(sao <= confused) + Number(sao <= unconscious) + Number(sao < dead));
-  const pco2 = first(hc["The pattern that defines it"], /PaCO2 over ([\d.]+)/), pct = first(hc["The pattern that defines it"], /CO2 over ([\d.]+)%/);
+  set("hypoxia-and-asphyxia-suffocation-the-foul-air", Math.max(a.airO2Pct !== undefined && a.airO2Pct < gasTolerances().hypoxiaO2Pct ? 1 : 0, sao === undefined || sao >= hypLimit ? 0 : 1 + Number(sao <= confused) + Number(sao <= unconscious) + Number(sao < dead)));
+  const pco2 = first(hc["The pattern that defines it"], /PaCO2 over ([\d.]+)/), pct = gasTolerances().hypercapniaCo2Pct;
   const [conf, narc] = [/confusion at ([\d.]+)%/, /narcosis ([\d.]+)/].map(re => first(hc.Course, re));
   const hcOn = (a.paco2Mmhg !== undefined && a.paco2Mmhg > pco2) || (a.airCo2Pct !== undefined && a.airCo2Pct > pct);
   set("hypercapnia-the-close-air", !hcOn ? 0 : 1 + Number((a.airCo2Pct ?? 0) >= conf) + Number((a.airCo2Pct ?? 0) >= narc));
@@ -576,6 +577,14 @@ export function medicineProcess(s: MedicineState, factors: HealingFactors = {}, 
     }
     s.elapsedSeconds = endSeconds;
     flushMedicineCrises(w, s);
-    Object.assign(bodyOutputs(w.registry.component(s.body)), medicineOutputs(s));
+    const out = bodyOutputs(w.registry.component(s.body));
+    const value = (id: string) => typeof out[id] === "number" ? out[id] as number : undefined;
+    const o2 = value("o2_frac"), co2 = value("co2_ppm");
+    Object.assign(out, airConditions(s, {
+      airO2Pct: o2 === undefined ? undefined : o2 * 100,
+      airCo2Pct: co2 === undefined ? undefined : co2 / 1e4,
+      sao2: value("sao2"), paco2Mmhg: value("paco2_mmhg"), cohb: value("cohb"),
+    }), medicineOutputs(s));
+    flushMedicineCrises(w, s);
   } };
 }

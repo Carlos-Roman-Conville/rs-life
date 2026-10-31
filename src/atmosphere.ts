@@ -212,12 +212,26 @@ export function cohbAfter(cohb: number, coPpm: number, ventilationLMin: number, 
 
 // ---------------------------------------------------------------------------------------------------------------- the library's thresholds
 
+/** Species susceptibility data only; medicine owns diagnosis and consequences. */
+export function gasTolerances() {
+  const text = cell("anatomy", "respiratory", "anatomy.respiratory.gas-tolerances-species", "Human default");
+  return { hypoxiaO2Pct: grab(text, /under ([\d.]+)% O2/, "species oxygen tolerance"),
+    hypercapniaCo2Pct: grab(text, /CO2 over ([\d.]+)%/, "species carbon dioxide tolerance") };
+}
+
 export interface GasThreshold { at: number; unit: "%" | "ppm"; falling: boolean; effect: string }
 
 /** The inhalation effect thresholds of a gas (`chemistry.substances`): "1% drowsy; 3% headache" as {at, unit, falling, effect}. */
 export function gasThresholds(gas: string): GasThreshold[] {
   const out: GasThreshold[] = [];
-  for (const piece of cell("chemistry", "substances", gas, "Effect thresholds (inhalation)").split(";")) {
+  let text = cell("chemistry", "substances", gas, "Effect thresholds (inhalation)");
+  if (gas === "o2") text = cell("atmosphere", "thresholds_layering", "atmosphere.thresholds_layering.o2", "Exposure bands")
+    .replace("species hypoxia tolerance:", `${gasTolerances().hypoxiaO2Pct}%`);
+  if (gas === "co2") {
+    const course = cell("medicine", "exposure", "medicine.exposure.hypercapnia-the-close-air", "Course");
+    text = `${grab(course, /drowsy at ([\d.]+)%/, "drowsiness")}% drowsy; ${gasTolerances().hypercapniaCo2Pct}% headache, panting; ${grab(course, /confusion at ([\d.]+)%/, "confusion")}% confusion; ${grab(course, /narcosis ([\d.]+)/, "narcosis")}% unconscious`;
+  }
+  for (const piece of text.split(";")) {
     const m = /^\s*(under |over )?([\d,.]+)(?: to [\d,.]+)? ?(%|ppm)\s*(.*)$/.exec(piece);
     if (m) out.push({ at: num(m[2]!), unit: m[3] as "%" | "ppm", falling: m[1] === "under " || gas === "o2", effect: m[4]!.trim() });
   }

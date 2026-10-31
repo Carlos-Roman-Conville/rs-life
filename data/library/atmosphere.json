@@ -43,5 +43,16 @@
       ["atmosphere.modifiers.water-depth", "Water depth", "under water", "pressure +1 atm per 10 m; no air at all: the breathing medium changes (ANATOMY respiratory profile)", "drowning is the lungs' medium, not a gas", "rex (the modifier, 2026-10-29); proposed (placeholder values)", "open"],
       ["atmosphere.modifiers.stability-and-inversion", "Stability and inversion", "ENVIRONMENT (calm nights, fog)", "a release lingers near the ground; smoke hangs on the water", "dispersion x0.3 on a calm night", "rex (the modifier, 2026-10-29); proposed (placeholder values)", "open"]
     ]
+  },
+  "thresholds_layering": {
+    "title": "Exposure bands; consequences belong to medicine",
+    "kind": "science",
+    "conf": "medium",
+    "source": "Existing chemistry exposure bands retained; species susceptibility is anatomy data, medical stages are medicine data.",
+    "columns": ["id", "Exposure bands", "Mark", "source"],
+    "rows": [
+      ["atmosphere.thresholds_layering.o2", "under 19.5% work falls; species hypoxia tolerance: judgement and coordination; 12% unconscious; 6% death in minutes", "proposed (Reality, 2026-10-31, DUP-25)", "open"],
+      ["atmosphere.thresholds_layering.co2", "See anatomy.respiratory.gas-tolerances-species and medicine.exposure.hypercapnia-the-close-air; pools low", "proposed (Reality, 2026-10-31, DUP-25)", "open"]
+    ]
   }
 }
