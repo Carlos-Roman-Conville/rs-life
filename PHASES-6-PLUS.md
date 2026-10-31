@@ -232,6 +232,31 @@ and recovery (sleep, the conversion window). Nobody inherits a Strength score.
 and health distributions (population cohorts), with the aggregation interface documented and tested as in P1
 refinement B (the aggregate refines, never contradicts).
 
+**Phenotype record (Rex, 2026-10-30; `Toolchain/ENGINES.md`, "Attraction and partner selection").** Every perceptible
+feature of a body, as observable characteristics that emerge from the genetic profile, development, nutrition, age,
+health and environment, never set by hand and never a score. Reality never computes an attractiveness: Cognition
+evaluates perceived features per observer. The body stores only characteristics meaningful in their own right, ones that
+already serve development, health, performance, recognition or resemblance; it never manufactures a feature solely
+because the attraction model wants it (Rex, 2026-10-30), which keeps the one-mechanism rule. The same record serves recognition, medical assessment, clothing and
+equipment fit, performance and inherited resemblance. Its parts, with what exists today:
+
+| Part | Features | Exists today | Sources to open (null and flagged until opened) |
+|---|---|---|---|
+| Facial geometry | eye spacing and shape, jaw shape, facial proportions, symmetry | nothing | facial anthropometry (Farkas 1994); heritability of face shape from twin and genome studies |
+| Body structure | height, skeletal frame, limb proportions | `height_cm` and mass as body props; segment lengths come with phase 6's anthropometric table | de Leva 1996 or Winter 2009 segments; CAESAR or NHANES anthropometric surveys; height heritability (Polderman 2015 twin meta-analysis) |
+| Body composition | muscle per group, fat and its distribution | `muscular.json` 31 groups (contractile index, not mass), `fat_kg`; fat distribution nothing | DXA reference data by age and sex; muscle mass by group from imaging studies |
+| Surface | skin colour and texture, hair colour, form and loss, eye colour | nothing | skin reflectance spectrophotometry (melanin index); pigmentation genetics (for example HIrisPlex-S) |
+| Movement | posture, gait, coordination | nothing (phase 6 gait, neurology coordination outputs) | gait norms (Bohannon 2011); postural sway data |
+| Voice | pitch, resonance, roughness | nothing | fundamental frequency norms by sex and age; vocal-tract length from height |
+| Scent | body odour profile | nothing | human odour chemistry studies; MHC and odour studies, a labelled hypothesis where contested |
+| Expression | the face's range and resting set | nothing (neurology mood is a state, not a face) | facial action coding (FACS) as the vocabulary |
+
+Each feature is a function of the three records above (genotype, tissue state, organism state) and of time: a feature
+changes as the tissue ages, scars or is fed, never as a separate counter. Features are stated with their own units
+(cm, a colour coordinate, Hz) and uncertainty; a named character carries the full record, a distant population its
+distributions. Validation: the emergent distributions of a simulated population fall inside the opened survey ranges by
+age and sex, and siblings resemble each other by the cited heritabilities, not by averaging.
+
 **Exists.** `physiology.json` `ageing` (a birthday-indexed curve, to become a check against the emergent decline, not a
 driver); `anatomy.json` organs with damage, repair and capacity slots; `muscular.ts` adaptation with an age gate;
 `neurology.json` `pk`; `population.json` cohorts.
