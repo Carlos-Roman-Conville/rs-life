@@ -3,6 +3,8 @@
  * Equations: MUSCULAR.md sections 4 and 5a; all fitted constants come from library.ts. */
 import { libraryColumns, libraryRow, libraryTable } from "./library.ts";
 import type { Trace } from "./trace.ts";
+import type { Process } from "./scheduler.ts";
+import { bodyOutputs } from "./physiology.ts";
 
 const table = (name: string) => libraryTable("muscular", name);
 const training = (slug: string) => libraryRow("muscular", "training", `muscular.training.${slug}`);
@@ -204,3 +206,29 @@ export function muscularOutputs(state: MuscularState) {
 
 /** Useful to adapters validating their action coverage, including missing group columns. */
 export const muscularActivationColumns = () => libraryColumns("muscular", "activations");
+
+export interface MuscularFatigueOptions {
+  /** Match physiology's cadence and place this process after it. */
+  every?: number;
+  recoveryMultiplier?: number;
+}
+
+/** Local fatigue reads the same work record as systemic MET-hours, never that counter.
+ * Numeric METs and activities without an activation row mean local rest. Missing rates remain null.
+ * Outputs are scalar ids: muscular.fatigue_3cc.<group>.<side>. Banister's daily state is separate. */
+export function muscularFatigueProcess(body: string, state: MuscularState, o: MuscularFatigueOptions = {}): Process {
+  const recovery = bounded(o.recoveryMultiplier ?? 1, 0, 1, "recovery multiplier");
+  return { name: "muscular", every: o.every ?? 10, step(w, dt) {
+    const out = bodyOutputs(w.registry.component(body)), activity = out.activity;
+    const activation = typeof activity === "string" && activity.startsWith("muscular.activations.")
+      ? muscularActivation(activity) : null;
+    for (const [group, sides] of Object.entries(state.groups)) {
+      for (const muscle of Object.values(sides)) {
+        if (muscle.compartments !== null)
+          muscle.compartments = stepMuscleFatigue(muscle.compartments, group, activation?.groups[group] ?? 0, dt, recovery);
+      }
+    }
+    for (const [group, sides] of Object.entries(muscularOutputs(state).fatigue))
+      for (const [side, fatigue] of Object.entries(sides)) out[`muscular.fatigue_3cc.${group}.${side}`] = fatigue;
+  } };
+}

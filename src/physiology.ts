@@ -10,7 +10,7 @@
  * DuBois from height_cm) and h (else ISO 7730's convection and radiation). On the room: rh (atmosphere's) and air_speed_ms (0).
  * Outputs by library id on `body.props.outputs` (read them with `bodyOutputs`): alertness, sleep_debt, circadian,
  * core_c, core_state, work_capacity_heat, water_deficit_pct, hydration_state, endurance_hydration, work_capacity_hydration,
- * energy_balance_kcal, metabolic_w,
+ * energy_balance_kcal, metabolic_w, met, activity (canonical schedule row id, null for a numeric MET),
  * pal, rmr_kcal, rmr_label, sweat_l_per_h, breath_water_l_per_h, skin_diffusion_l_per_h, urine_l_per_h, wbgt_c, wbgt_ceiling_c,
  * acclimatisation, fatigue_met_hours, and the matching `*_row` ids. A water deficit in a band whose row says work stops
  * ("incapacitated") or death opens a crisis record for that row (crisis.ts); the engine kills no one.
@@ -153,9 +153,11 @@ function lib(): Tables {
   return tables;
 }
 
-/** MET of a library activity: a full id (`physiology.met.smithing`), its slug (`smithing`), or a number as given. */
+/** MET of a physiology row (full id or slug), a muscular.activations row id, or a number as given. */
 export function metOf(activity: number | string): number {
   if (typeof activity === "number") return activity;
+  if (activity.startsWith("muscular.activations."))
+    return Number(libraryRow("muscular", "activations", activity)["Intensity (MET)"]);
   const t = lib().met, v = t.get(activity) ?? t.get(`physiology.met.${activity}`);
   if (v === undefined) throw new Error(`physiology: no MET row ${activity}`);
   return v;
@@ -261,7 +263,7 @@ export function oxygenLitresPerMin(metabolicW: number): number {
 
 export interface ScheduleEntry {
   fromH: number; toH: number;          // clock hours; toH <= fromH wraps midnight
-  activity: number | string;           // a MET or a library MET row (id or slug)
+  activity: number | string;           // a MET, a physiology MET row (id or slug), or a muscular.activations row id
   sleepQuality?: number;               // present: asleep; hours count at this weight toward the night
 }
 
@@ -369,14 +371,17 @@ function closeDay(b: Component, rmr: number | null) {
 
 export function physiologyProcess(body: string, room: string, o: PhysiologyOptions = {}): Process {
   const clockH0 = o.clockH0 ?? 0, dayStartH = o.dayStartH ?? 12;
-  const schedule = (o.schedule ?? []).map(e => ({ ...e, met: metOf(e.activity) }));
+  const schedule = (o.schedule ?? []).map(e => ({ ...e, met: metOf(e.activity),
+    activity: typeof e.activity === "number" ? null
+      : e.activity.startsWith("muscular.activations.") || e.activity.startsWith("physiology.met.")
+        ? e.activity : `physiology.met.${e.activity}` }));
   const activityAt = (hour: number) => {
     for (const e of schedule) {
       const inside = e.fromH < e.toH ? hour >= e.fromH && hour < e.toH : hour >= e.fromH || hour < e.toH;
-      if (inside) return { met: e.met, quality: e.sleepQuality ?? null };
+      if (inside) return { met: e.met, activity: e.activity, quality: e.sleepQuality ?? null };
     }
     if (o.met === undefined) throw new Error(`physiology: no activity at ${hour} h and no default MET`);
-    return { met: o.met, quality: null };
+    return { met: o.met, activity: null, quality: null };
   };
   return { name: "body", every: o.every ?? 10, step(w, dt) {
     const b = w.registry.component(body), r = w.registry.component(room), reg = w.registry, p = b.props, t = lib();
@@ -478,6 +483,7 @@ export function physiologyProcess(body: string, room: string, o: PhysiologyOptio
     const hyd = hydrationRow(p.waterDeficitPct, over > 0);
     p.intake_kcal ??= 0;
     out.met = met;
+    out.activity = act.activity;
     out.metabolic_w = mWatt;
     out.rmr_kcal = rmr;
     out.rmr_label = o.rmrOverride !== undefined ? o.rmrOverride.label : rmr === null ? null : "researched";

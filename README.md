@@ -247,6 +247,26 @@ activation rows; `stepMuscleFatigue` moves a group's resting, active and fatigue
 fatigue per group and side and pattern skill per side; limb strength, oxidative, tendon and neural adaptation and muscle mass are
 `null` until the library carries them. See [`flags/muscular.md`](flags/muscular.md).
 
+### Fatigue: local and systemic
+
+Reality's proposed aggregation interface (2634) is **one record of the work**, physiology's schedule. An entry's
+`activity` may name a `muscular.activations.*` row: physiology charges its `Intensity (MET)` and publishes the row id
+as `outputs.activity` beside `outputs.met`. `fatigue_met_hours` sums MET x hours and follows the overnight recovery
+table. A physiology MET row publishes its canonical id; a numeric MET (including the default) publishes null.
+
+Add `muscularFatigueProcess(bodyId, state, options)` after physiology with the **same `every` cadence** (both default
+to 10), using steps aligned to schedule boundaries. It reads that activity's activation share as each group's 3CC
+effort; other activities and numeric METs mean local rest. Missing rate sets remain null. The optional
+`recoveryMultiplier` defaults to 1. The scalar outputs `muscular.fatigue_3cc.<group>.<side>` publish
+`muscularOutputs(state).fatigue`, for example `outputs["muscular.fatigue_3cc.hand.L"]`.
+
+Local fatigued fractions (minutes to hours) and systemic MET-hours are distinct peripheral and whole-body states;
+neither is calculated from the other. Banister's daily training-response fatigue (`muscularBanisterDay`) remains a
+third state. Nutrition can run after physiology on the same cadence and reads the same MET for glycogen use above
+its library threshold. MET comparisons and two independent maximal-hold force endpoints are tested; this does not
+validate the proposed activation shares or a general local-to-systemic force relationship. See
+[`flags/muscular.md`](flags/muscular.md) for the evidence and limits.
+
 ### Medicine (`src/medicine.ts`)
 
 Diseases as courses (`diseaseCourse`), immunity (`immunityRule`), wounds and their healing clock, pain, treatments and the air
