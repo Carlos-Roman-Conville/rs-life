@@ -20,7 +20,7 @@ import type { World } from "./world.ts";
 import type { Component } from "./registry.ts";
 import { KCAL_J } from "./physics.ts";
 import { libraryRow, libraryTable, type LibraryRow } from "./library.ts";
-import { addBodyWater, bodyOutputs, ingest } from "./physiology.ts";
+import { setBodyGlycogen, bodyOutputs, ingest } from "./physiology.ts";
 
 const UNIT_KG = { g: 1e-3, mg: 1e-6, mcg: 1e-9 } as const;
 type Unit = keyof typeof UNIT_KG;
@@ -382,6 +382,11 @@ export const GLYCOGEN_BOUND_WATER: number | null = (() => {
   return value === null ? null : typeof value === "number" ? value : grab(String(value), /([\d.]+) g of water/, "glycogen-bound water");
 })();
 
+/** Water already inside the body, held by its current glycogen reserve. */
+export function glycogenBoundWaterKg(body: Component): number {
+  return (body.props.glycogen_g ?? composition().glycogenCapG) / 1000 * (GLYCOGEN_BOUND_WATER ?? 0);
+}
+
 /** realism.nutrition.body_mass: the sole runtime writer of body component mass. */
 export function bodyMassDelta(w: World, body: string, kg: number, process: string, note: string) {
   const b = w.registry.component(body), before = b.mass;
@@ -461,17 +466,16 @@ function closeDay(w: World, bodyId: string, o: NutritionOptions, sweatKg: number
     fatDelta = next - p.fat_kg; unplaced = rest - fatDelta * c.kcalPerKgFat;
     p.fat_kg = next;
   }
-  // Water (including glycogen-associated water) changes mass immediately through physiology.
-  const glycogenKg = g / 1000, boundKg = glycogenKg * (GLYCOGEN_BOUND_WATER ?? 0);
+  // Glycogen binds/releases existing body water; only dry stores change body mass.
+  const glycogenKg = g / 1000;
   if (GLYCOGEN_BOUND_WATER === null) w.trace.note(w.t, "(2623) unvalidated: null glycogen-bound-water row; water delta disabled");
-  if (boundKg !== 0) addBodyWater(w, bodyId, boundKg, "nutrition", "glycogen-bound water");
+  setBodyGlycogen(w, bodyId, glycogen);
   bodyMassDelta(w, bodyId, fatDelta, "nutrition", "fat storage");
   bodyMassDelta(w, bodyId, glycogenKg, "nutrition", "glycogen storage");
   out.glycogen_bound_water_kg = GLYCOGEN_BOUND_WATER === null ? null : glycogen / 1000 * GLYCOGEN_BOUND_WATER;
   const waterChangeKg = -(p.waterDeficitKg ?? 0);
   out.water_change_kg = waterChangeKg - (p.nut_water_report_mark ?? 0);
   p.nut_water_report_mark = waterChangeKg; // reporting only; never applied to mass
-  p.glycogen_g = glycogen;
   p.nut_balance_kcal = (p.nut_balance_kcal ?? 0) + balance;
   p.nut_unplaced_kcal = (p.nut_unplaced_kcal ?? 0) + unplaced;
   p.nut_stored_kcal = (p.nut_stored_kcal ?? 0) + g * c.kcalPerGlycogenG + fatDelta * c.kcalPerKgFat;

@@ -83,7 +83,8 @@ export function initialiseCirculation(w: World, body: string, profile?: { bloodV
   const b = w.registry.component(body), p = b.props;
   if (p.circulation_initial_ml !== undefined) return;
   if (!profile && p.male !== 0 && p.male !== 1) throw new Error("circulation: supply male=0 or 1 for normal volume");
-  const volume = profile?.bloodVolumeMl ?? normalBloodVolume(b.mass, p.male === 1);
+  // A pre-step meal/drink changes live mass, not the reference blood volume.
+  const volume = profile?.bloodVolumeMl ?? normalBloodVolume(p.water_start_mass_kg ?? b.mass, p.male === 1);
   const hb = profile?.haemoglobinGDL ?? (p.male === 1 ? normal("haemoglobin") : numberIn(row("quantities", "haemoglobin")["Normal (70 kg man)"], /men\) ([\d.]+)/));
   finite(volume, "profile blood volume"); finite(hb, "profile haemoglobin");
   if (!volume) throw new Error("circulation: zero baseline");

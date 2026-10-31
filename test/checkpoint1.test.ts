@@ -38,11 +38,12 @@ describe('checkpoint 1: an integrated human week', () => {
       expect(d.waterInKg - d.metabolicWaterKg).toBeCloseTo(foodWater + 6 * FIXTURE.drinkKg, 9); // metabolic water: physiology (2540)
       water += d.waterInKg - d.waterOutKg;
       expect(d.waterKg).toBeCloseTo(water, 8);
-      expect(d.waterDeficitKg).toBeCloseTo(FIXTURE.waterKg - water, 8);
+      const boundChange = (Number(d.outputs.glycogen_g) - initialGlycogen) / 1000 * (GLYCOGEN_BOUND_WATER ?? 0);
+      expect(d.waterDeficitKg).toBeCloseTo(FIXTURE.waterKg - water - boundChange, 8);
       balance += d.kcalIn - d.kcalOut;
       // Mass change = fat + dry glycogen + the water ledger's change.
       const glycogenKg = (Number(d.outputs.glycogen_g) - initialGlycogen) / 1000, fatKg = (balance - (Number(d.outputs.glycogen_g) - initialGlycogen) * glyEnergy) / fatDensity;
-      // (2623) Bound water is included in the single water ledger, so count it once.
+      // Bound/free transfers leave total water and body mass unchanged.
       expect(d.massKg - FIXTURE.massKg).toBeCloseTo(fatKg + glycogenKg - d.waterDeficitKg, 8);
       expect(d.outputs.water_change_kg).toBeTypeOf('number');
       debt += need - ((FIXTURE.watchDays as readonly number[]).includes(d.day) ? 4 : 6);
@@ -81,7 +82,7 @@ describe('checkpoint 1: an integrated human week', () => {
     expect(spent).toBeCloseTo(7 * spec.useFixed + spec.sweatPerL * Number(run.body.props.sweat_kg), 12);
   }, 20_000);
 
-  it('a fast shows the early glycogen and bound water drop of the library rows', () => {
+  it('a fast releases glycogen-bound water without losing it from the body', () => {
     const w = new World(defaultRegistry()), sch = new Scheduler();
     const cap = numberIn(row('nutrition', 'body_composition', 'glycogen').Rule, /up to ([\d.]+) g/);
     const body: Component = { id: 'body', kind: 'body', material: 'flesh', mass: 70, temperatureC: 37, contents: [], ports: [],
@@ -93,9 +94,10 @@ describe('checkpoint 1: an integrated human week', () => {
     expect(body.props.glycogen_g).toBeLessThan(cap); // the store is drawn first
     const lostG = cap - body.props.glycogen_g!;
     expect(lostG).toBeGreaterThan(0);
-    // bound water leaves with the glycogen: the day's mass loss is fat + glycogen + its bound water
+    // Only dry stores leave; bound water becomes free water.
     const fatLost = 15 - body.props.fat_kg!;
-    expect(70 - body.mass).toBeCloseTo(fatLost + lostG / 1000 * (1 + (GLYCOGEN_BOUND_WATER ?? 0)), 9);
+    expect(70 - body.mass).toBeCloseTo(fatLost + lostG / 1000, 9);
+    expect(body.props.waterDeficitKg).toBeCloseTo(0, 9);
     expect(w.trace.failed()).toEqual([]);
   });
 

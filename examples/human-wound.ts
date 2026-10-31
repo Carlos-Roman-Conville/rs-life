@@ -67,7 +67,7 @@ export function runWoundVariant(variant: Variant, seed: number = WOUND_FIXTURE.s
         lastOrganUpdate = world.t + dt;
       }
       // Assembly shells and dimensionless fibres cannot add body mass. The
-      // nutrition's mass change is fat + dry glycogen + the live water ledger (2623), which includes bound water.
+      // nutrition's mass change is fat + dry glycogen + total body-water change; binding/release is internal.
       world.trace.check(world.t, 'mass:body-composition-proxy',
         FIXTURE.massKg + body.props.fat_kg - FIXTURE.fatKg + ((body.props.glycogen_g ?? 400) - 400) / 1000
           - (body.props.waterDeficitKg ?? 0), body.mass, 1e-9);

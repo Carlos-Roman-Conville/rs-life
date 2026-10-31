@@ -22,7 +22,7 @@ import { C_TO_K, KCAL_J, M, O2_ENERGY_J_PER_L, P_SEA_LEVEL, SWEAT_LATENT, heatFl
 import { libraryMeta, libraryRow, libraryTable, type LibraryRow } from "./library.ts";
 import { accumulateExposure } from "./atmosphere.ts";
 import { trackCrisis } from "./crisis.ts";
-import { bodyMassDelta } from "./nutrition.ts";
+import { bodyMassDelta, glycogenBoundWaterKg, GLYCOGEN_BOUND_WATER } from "./nutrition.ts";
 
 export type BodyOutputs = Record<string, number | string | null>;
 
@@ -278,27 +278,39 @@ export interface PhysiologyOptions {
 /** Establish the reference once, before even a pre-step meal. Initial water is already part of body mass. */
 function initialiseBodyWater(w: World, b: Component) {
   if (b.props.water_start_kg !== undefined) return;
-  if (!b.contents.some(x => x.substance === "water")) {
+  const priorDeficitKg = b.props.waterDeficitKg;
+  if (!b.contents.some(x => x.substance === "water") || priorDeficitKg !== undefined) {
     const id = `physiology.body_water.total-body-water-fraction-${b.props.male === 0 ? "women" : "men"}`;
     const fraction = libraryRow("physiology", "body_water", id).Value;
     if (typeof fraction !== "number" || !Number.isFinite(fraction) || fraction <= 0 || fraction > 1) throw new Error(`physiology: missing valid numeric row ${id}`);
-    const kg = fraction * b.mass;
-    w.registry.addContent(b, "water", "liquid", kg);
-    w.trace.record({ t: w.t, process: "realism.physiology.water_balance", quantity: "mass:water", from: "initial-body-water", to: b.id, amount: kg, note: "initial water already included in body mass" });
-  }
-  b.props.water_start_kg = w.registry.contentMass(b, "water");
+    const referenceKg = fraction * b.mass;
+    // A host's prior deficit describes the starting state, not a new mass loss.
+    const kg = referenceKg - (priorDeficitKg ?? 0) - glycogenBoundWaterKg(b);
+    if (!Number.isFinite(kg) || kg < 0) throw new Error("physiology: invalid initial body water after deficit and glycogen binding");
+    const deltaKg = kg - w.registry.contentMass(b, "water");
+    w.registry.addContent(b, "water", "liquid", deltaKg);
+    w.trace.record({ t: w.t, process: "realism.physiology.water_balance", quantity: "mass:water",
+      from: deltaKg >= 0 ? "initial-body-water" : b.id, to: deltaKg >= 0 ? b.id : "initial-body-water",
+      amount: Math.abs(deltaKg), note: "initial water already included in body mass" });
+    b.props.water_start_kg = referenceKg;
+  } else b.props.water_start_kg = totalBodyWaterKg(w, b);
   b.props.water_start_mass_kg = b.mass;
+}
+
+/** Total body water includes the free content and the water held by glycogen. */
+export function totalBodyWaterKg(w: World, b: Component): number {
+  return w.registry.contentMass(b, "water") + glycogenBoundWaterKg(b);
 }
 
 /** Derived views only: the fixed reference mass keeps deficit in % of starting body mass. */
 function deriveBodyWater(w: World, b: Component) {
-  b.props.waterDeficitKg = b.props.water_start_kg - w.registry.contentMass(b, "water");
+  b.props.waterDeficitKg = b.props.water_start_kg - totalBodyWaterKg(w, b);
   b.props.waterDeficitPct = b.props.waterDeficitKg / b.props.water_start_mass_kg * 100;
   bodyOutputs(b).water_deficit_pct = b.props.waterDeficitPct;
 }
 
 /** Physiology owns registry water; every actual transfer also changes body mass immediately.
- * `other` names an external source/sink; default is the caller's process (e.g. glycogen storage).
+ * `other` names an external source/sink; default is the caller's process.
  */
 export function addBodyWater(w: World, body: string, kg: number, process: string, note: string, other = process) {
   const b = w.registry.component(body);
@@ -309,6 +321,23 @@ export function addBodyWater(w: World, body: string, kg: number, process: string
   w.registry.addContent(b, "water", "liquid", kg);
   bodyMassDelta(w, body, kg, process, note);
   w.trace.record({ t: w.t, process, quantity: "mass:water", from: kg >= 0 ? other : body, to: kg >= 0 ? body : other, amount: Math.abs(kg), note });
+  deriveBodyWater(w, b);
+}
+
+/** Move water internally as glycogen changes, without a body-mass transfer. */
+export function setBodyGlycogen(w: World, body: string, glycogenG: number) {
+  const b = w.registry.component(body);
+  if (b.kind !== "body" || !Number.isFinite(glycogenG) || glycogenG < 0)
+    throw new Error("physiology: invalid glycogen reserve");
+  initialiseBodyWater(w, b);
+  const boundDelta = glycogenG / 1000 * (GLYCOGEN_BOUND_WATER ?? 0) - glycogenBoundWaterKg(b);
+  if (w.registry.contentMass(b, "water", "liquid") - boundDelta < -1e-12)
+    throw new Error("physiology: body water overdraw");
+  w.registry.addContent(b, "water", "liquid", -boundDelta);
+  b.props.glycogen_g = glycogenG;
+  if (boundDelta !== 0) w.trace.record({ t: w.t, process: "nutrition", quantity: "mass:water",
+    from: boundDelta > 0 ? body : `${body}:glycogen-bound`, to: boundDelta > 0 ? `${body}:glycogen-bound` : body,
+    amount: Math.abs(boundDelta), note: "glycogen-bound water" });
   deriveBodyWater(w, b);
 }
 

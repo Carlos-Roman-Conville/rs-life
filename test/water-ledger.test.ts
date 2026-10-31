@@ -4,9 +4,11 @@ import validation from '../data/library/validation.json';
 import * as library from '../src/library.ts';
 import { World } from '../src/world.ts';
 import { defaultRegistry, type Component } from '../src/registry.ts';
-import { addBodyWater, bodyOutputs, ingest, physiologyProcess } from '../src/physiology.ts';
-import { bodyMassDelta, GLYCOGEN_BOUND_WATER, nutritionProcess } from '../src/nutrition.ts';
-import { circulationProcess, initialiseCirculation, loseBlood } from '../src/circulation.ts';
+import { addBodyWater, bodyOutputs, ingest, physiologyProcess, totalBodyWaterKg } from '../src/physiology.ts';
+import { bodyMassDelta, eat, foodContent, foodRow, glycogenBoundWaterKg, GLYCOGEN_BOUND_WATER, nutritionProcess } from '../src/nutrition.ts';
+import { bleed, bleedingClass, bleedFactor, circulationProcess, initialiseCirculation, loseBlood, normalBloodVolume } from '../src/circulation.ts';
+import { airContents, roomAirProcess } from '../src/atmosphere.ts';
+import { airDensity, C_TO_K, P_SEA_LEVEL } from '../src/physics.ts';
 import { FIXTURE, runHumanWeek } from '../examples/human-week.ts';
 
 function fixture(water: number | null = 40, male = 1) {
@@ -32,6 +34,64 @@ const fit = () => {
 };
 
 describe('one body water ledger (2623)', () => {
+  it.each([18, 22, 24])('dry sedentary day at %s C counts traced water loss and body mass once (2677)', temperatureC => {
+    const { w, body, out } = fixture();
+    const room = w.registry.component('room');
+    const physiology = physiologyProcess('body', 'room', { met: 1, dayStartH: 0 });
+    for (w.t = 0; w.t < 86400; w.t += 60) {
+      room.temperatureC = temperatureC;
+      physiology.step(w, 60);
+    }
+    const water = w.trace.transfers.filter(t => t.quantity === 'mass:water');
+    const sum = (note: string) => water.filter(t => t.note === note).reduce((n, t) => n + t.amount, 0);
+    const losses = { urine: sum('urine'), breath: sum('breath'), skin: sum('skin diffusion'), sweat: sum('sweat') };
+    const metabolic = sum('metabolic water');
+    const loss = Object.values(losses).reduce((a, b) => a + b, 0) - metabolic;
+    expect(w.trace.outOf('body', 'mass:water') - w.trace.into('body', 'mass:water')).toBeCloseTo(loss, 9);
+    expect(40 - waterKg(w)).toBeCloseTo(loss, 9);
+    expect(70 - body.mass).toBeCloseTo(loss, 9);
+    expect(body.props.waterDeficitKg).toBeCloseTo(loss, 9);
+    expect(out.water_deficit_pct).toBeCloseTo(loss / 70 * 100, 9);
+    expectClosed(w);
+    // The reference rows have no zero-intake sedentary cohort or scaling rule.
+    // Intake ranges cannot validate loss during fasting; mixed-population means cannot supply one.
+    console.log('(2677) dry day', JSON.stringify({ temperatureC, losses, metabolic, loss, deficitPct: out.water_deficit_pct }));
+  });
+
+  it('dry sedentary day matches the pirate standing-watch body while glycogen releases water (2677)', () => {
+    const { w, body, out } = fixture();
+    const room = w.registry.component('room');
+    room.temperatureC = 24;
+    room.mass = airDensity(P_SEA_LEVEL, 24 + C_TO_K) * 40;
+    room.contents = airContents(40, P_SEA_LEVEL, 24);
+    room.props = { volume_m3: 40, pressurePa: P_SEA_LEVEL, ach: 2 };
+    w.env.outsideC = 24;
+    const air = roomAirProcess('room');
+    const physiology = physiologyProcess('body', 'room', { met: 1.5, clockH0: 12, dayStartH: 12 });
+    const nutrition = nutritionProcess('body', { clockH0: 12, dayStartH: 12 });
+    for (w.t = 0; w.t < 86400; w.t += 60) {
+      air.step(w, 60);
+      physiology.step(w, 60);
+      nutrition.step(w, 60);
+    }
+    const glycogenWater = 0.4 * (GLYCOGEN_BOUND_WATER ?? 0);
+    const water = w.trace.transfers.filter(t => t.quantity === 'mass:water' && t.note !== 'glycogen-bound water');
+    const outflows = water.filter(t => t.from === 'body').reduce((s, t) => s + t.amount, 0);
+    const metabolic = water.filter(t => t.from === 'oxidation').reduce((s, t) => s + t.amount, 0);
+    const loss = outflows - metabolic;
+    expect(body.props.glycogen_g).toBe(0);
+    expect(40 + glycogenWater - totalBodyWaterKg(w, body)).toBeCloseTo(loss, 9);
+    expect(body.props.waterDeficitKg).toBeCloseTo(loss, 9);
+    expect(out.water_deficit_pct).toBeCloseTo(loss / 70 * 100, 9);
+    expect(out.water_deficit_pct).toBeCloseTo(1.57, 1);
+    expect(body.mass - 70).toBeCloseTo(body.props.fat_kg - 15 - 0.4 - loss, 9);
+    expect(w.trace.transfers.filter(t => t.from === 'body:glycogen-bound')).toEqual([
+      expect.objectContaining({ to: 'body', quantity: 'mass:water', amount: glycogenWater }),
+    ]);
+    expectClosed(w);
+    console.log('(2677) pirate dry day', JSON.stringify({ outflows, metabolic, loss, deficitPct: out.water_deficit_pct }));
+  });
+
   it.each([0, 1])('initialises missing water once from the row for male=%s, without adding initial body mass', male => {
     const { w, body } = fixture(null, male);
     const fraction = library.libraryRow('physiology', 'body_water', `physiology.body_water.total-body-water-fraction-${male ? 'men' : 'women'}`).Value as number;
@@ -40,6 +100,41 @@ describe('one body water ledger (2623)', () => {
     expect(body.props.water_start_kg).toBe(70 * fraction);
     expect(w.trace.transfers.filter(t => t.from === 'initial-body-water')).toHaveLength(1);
     expectClosed(w, 70, 0);
+  });
+
+  it.each([
+    { water: null, male: 0 }, { water: null, male: 1 },
+    { water: 38, male: 0 }, { water: 38, male: 1 },
+  ])('preserves a 2 kg host deficit at the first step and counts subsequent transfers (2687): $water, male=$male', ({ water, male }) => {
+    const { w, body, out } = fixture(water, male);
+    body.props.waterDeficitKg = 2;
+    const fraction = library.libraryRow('physiology', 'body_water', `physiology.body_water.total-body-water-fraction-${male ? 'men' : 'women'}`).Value as number;
+    const referenceKg = 70 * fraction;
+    const process = physiologyProcess('body', 'room', { met: 1 });
+    // Observe initialization without accruing any new interval's water loss.
+    process.step(w, 0);
+    expect(body.props.water_start_kg).toBe(referenceKg);
+    expect(Math.abs(body.props.waterDeficitKg - 2)).toBeLessThan(1e-9);
+    expect(out.water_deficit_pct).toBeCloseTo(2 / 70 * 100, 9);
+    expect(totalBodyWaterKg(w, body)).toBeCloseTo(referenceKg - 2, 9);
+    expect(waterKg(w)).toBeCloseTo(referenceKg - 2 - glycogenBoundWaterKg(body), 9);
+    expect(body.mass).toBe(70);
+
+    ingest(w, 'body', { waterKg: 0.5 });
+    expect(body.props.waterDeficitKg).toBeCloseTo(1.5, 9);
+    addBodyWater(w, 'body', -0.25, 'fixture', 'subsequent loss');
+    expect(body.props.waterDeficitKg).toBeCloseTo(1.75, 9);
+    const mark = w.trace.transfers.length;
+    process.step(w, 60);
+    const transfers = w.trace.transfers.slice(mark).filter(t => t.quantity === 'mass:water');
+    const loss = transfers.filter(t => t.from === 'body').reduce((s, t) => s + t.amount, 0)
+      - transfers.filter(t => t.to === 'body').reduce((s, t) => s + t.amount, 0);
+    expect(body.props.water_start_kg).toBe(referenceKg);
+    expect(body.props.waterDeficitKg).toBeCloseTo(1.75 + loss, 9);
+    expect(out.water_deficit_pct).toBeCloseTo((1.75 + loss) / 70 * 100, 9);
+    expect(body.mass).toBeCloseTo(70.25 - loss, 9);
+    expect(w.trace.transfers.filter(t => t.from === 'initial-body-water' || t.to === 'initial-body-water')).toHaveLength(1);
+    expectClosed(w, 70, water ?? 0);
   });
 
   it('names a missing body-water row and preserves the body when it cannot initialise', () => {
@@ -59,7 +154,7 @@ describe('one body water ledger (2623)', () => {
     const { w, body } = fixture(null);
     const fraction = library.libraryRow('physiology', 'body_water', 'physiology.body_water.total-body-water-fraction-men').Value as number;
     ingest(w, 'body', { waterKg: 1 });
-    expect(waterKg(w)).toBeCloseTo(70 * fraction + 1, 9);
+    expect(waterKg(w)).toBeCloseTo(70 * fraction - glycogenBoundWaterKg(body) + 1, 9);
     expect(body.mass).toBe(71); expect(body.props.waterDeficitKg).toBe(-1);
     physiologyProcess('body', 'room', { met: 1 }).step(w, 1);
     expect(body.props.water_start_kg).toBe(70 * fraction);
@@ -153,8 +248,52 @@ describe('one body water ledger (2623)', () => {
     nutrition.step(w, 86400);
     const delta = (body.props.glycogen_g - start) / 1000;
     expect(Math.abs(delta)).toBeGreaterThan(0);
-    expect(waterKg(w) - 40).toBeCloseTo(delta * (GLYCOGEN_BOUND_WATER ?? 0), 9);
-    expect(body.mass - 70).toBeCloseTo(body.props.fat_kg - 15 + delta * (1 + (GLYCOGEN_BOUND_WATER ?? 0)), 9);
+    expect(waterKg(w) - 40).toBeCloseTo(-delta * (GLYCOGEN_BOUND_WATER ?? 0), 9);
+    expect(body.props.waterDeficitKg).toBeCloseTo(0, 9);
+    expect(body.mass - 70).toBeCloseTo(body.props.fat_kg - 15 + delta, 9);
+    expectClosed(w);
+  });
+
+  it('glycogen refill binds existing water and adds only dry glycogen plus meal water to mass (2677)', () => {
+    const { w, body } = fixture();
+    body.props.glycogen_g = 0;
+    const food = foodRow('muscovado-sugar'), mealKg = 500 / foodContent(food, 'carb', 1);
+    const mealWater = foodContent(food, 'water', mealKg) / 1000;
+    eat(w, 'body', food.id, mealKg);
+    // Leave exactly the 1,600 kcal needed for 400 g glycogen after this day's use.
+    body.props.expenditure_kcal = body.props.intake_kcal - 1600;
+    nutritionProcess('body', { dayStartH: 0 }).step(w, 86400);
+    expect(body.props.glycogen_g).toBeCloseTo(400, 9);
+    expect(body.props.fat_kg).toBeCloseTo(15, 9);
+    expect(body.mass - 70).toBeCloseTo(0.4 + mealWater, 9);
+    expect(totalBodyWaterKg(w, body) - 40).toBeCloseTo(mealWater, 9);
+    expect(body.props.waterDeficitKg).toBeCloseTo(-mealWater, 9);
+    expect(waterKg(w) - 40).toBeCloseTo(mealWater - 0.4 * (GLYCOGEN_BOUND_WATER ?? 0), 9);
+    expect(w.trace.transfers.filter(t => t.to === 'body:glycogen-bound')).toEqual([
+      expect.objectContaining({ from: 'body', quantity: 'mass:water', amount: 0.4 * (GLYCOGEN_BOUND_WATER ?? 0) }),
+    ]);
+    expect(w.trace.transfers.some(t => t.quantity === 'mass:body' && t.note === 'glycogen-bound water')).toBe(false);
+    expectClosed(w);
+  });
+
+  it('a pre-circulation meal does not move the blood baseline or delay a wound crisis (2677)', () => {
+    const { w, body } = fixture();
+    ingest(w, 'body', { waterKg: 3 });
+    initialiseCirculation(w, 'body');
+    const baseline = normalBloodVolume(70, true), rate = 100, clotting = 0.5, dt = 60;
+    expect(body.props.circulation_initial_ml).toBe(baseline);
+    const circulation = circulationProcess('body');
+    let reachS = 0;
+    while (bleedingClass(rate / 60 * (bleedFactor() - clotting) * reachS, baseline).Class !== 'IV') reachS++;
+    while (body.props.blood_lost_ml <= baseline * 0.4) {
+      bleed(w, 'body', rate, dt, clotting);
+      circulation.step(w, dt);
+      w.t += dt;
+    }
+    const crisis = w.trace.crises.find(c => c.cause === 'circulation.bleeding.iv')!;
+    expect(crisis).toBeDefined();
+    expect(crisis.startedAt + dt - reachS).toBeGreaterThanOrEqual(0);
+    expect(crisis.startedAt + dt - reachS).toBeLessThanOrEqual(dt);
     expectClosed(w);
   });
 
@@ -169,7 +308,7 @@ describe('one body water ledger (2623)', () => {
   it('preserves an explicitly empty water content rather than reinitialising it', () => {
     const { w, body } = fixture(0);
     physiologyProcess('body', 'room', { met: 1 }).step(w, 1);
-    expect(body.props.water_start_kg).toBe(0);
+    expect(body.props.water_start_kg).toBe(glycogenBoundWaterKg(body));
     expect(w.trace.transfers.some(t => t.from === 'initial-body-water')).toBe(false);
     expectClosed(w, 70, 0);
   });
@@ -198,7 +337,7 @@ describe('one body water ledger (2623)', () => {
   it('closes the human-week mass balance within 1e-6 kg', () => {
     const { w, body } = runHumanWeek();
     expect(Math.abs(FIXTURE.massKg + w.trace.into('body', 'mass:body') - w.trace.outOf('body', 'mass:body') - body.mass)).toBeLessThan(1e-6);
-    expect(body.props.waterDeficitKg).toBeCloseTo(FIXTURE.waterKg - waterKg(w), 9);
+    expect(body.props.waterDeficitKg).toBeCloseTo(FIXTURE.waterKg + 0.4 * (GLYCOGEN_BOUND_WATER ?? 0) - totalBodyWaterKg(w, body), 9);
     expect(w.trace.failed()).toEqual([]);
   }, 20_000);
 
