@@ -32,7 +32,7 @@ export interface CrisisDetail { source: string; risk?: number | null; day?: numb
 export function recordCrisis(w: World, c: Crisis): Crisis {
   if (!w.trace.crises.includes(c)) {
     w.trace.crises.push(c);
-    w.trace.note(c.startedAt, `crisis: ${c.body}/${c.cause}; ${c.source}; outcome belongs to host`);
+    w.trace.note(c.startedAt, `crisis: ${c.body}/${c.cause}; ${c.source}; outcome belongs to host`, { keep: true }); // (2715)
   }
   return c;
 }
@@ -64,5 +64,5 @@ export function declareDeath(w: World, body: string, cause: string) {
   if (!c) throw new Error(`crisis: ${body} cannot die of ${cause} with no crisis record in the trace`);
   c.resolved = "died";
   w.registry.component(body).props.dead = 1;
-  w.trace.note(w.t, `death: ${body}; ${cause}; after crisis ${c.cause} (${c.source})`);
+  w.trace.note(w.t, `death: ${body}; ${cause}; after crisis ${c.cause} (${c.source})`, { keep: true }); // (2715)
 }

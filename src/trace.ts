@@ -22,16 +22,17 @@ export class Trace {
   transfers: Transfer[] = [];
   checks: Check[] = [];
   checkSummaries: CheckSummary[] = [];
-  notes: { t: number; text: string }[] = [];
+  /** `keep` (2715): compaction never folds a kept note; a snapshot without it reads as not kept. */
+  notes: { t: number; text: string; keep?: boolean }[] = [];
   noteSummaries: NoteSummary[] = [];
   /** Every crisis record opened on any body (crisis.ts): the trace is where a death must find its crisis. */
   crises: Crisis[] = [];
   record(x: Transfer) { this.transfers.push(x); }
-  note(t: number, text: string) { this.notes.push({ t, text }); }
+  note(t: number, text: string, opts?: { keep?: boolean }) { this.notes.push(opts?.keep ? { t, text, keep: true } : { t, text }); } // (2715)
   check(t: number, quantity: string, expected: number, actual: number, tolerance: number) {
     const ok = Math.abs(expected - actual) <= tolerance;
     this.checks.push({ t, quantity, expected, actual, tolerance, ok });
-    if (!ok) this.note(t, `CONSERVATION FAILED ${quantity}: expected ${expected} got ${actual} (tolerance ${tolerance})`);
+    if (!ok) this.note(t, `CONSERVATION FAILED ${quantity}: expected ${expected} got ${actual} (tolerance ${tolerance})`, { keep: true }); // (2715)
     return ok;
   }
   // Summaries contain only passes: every failure remains available verbatim here.
@@ -71,7 +72,7 @@ export class Trace {
     const notes = new Map(this.noteSummaries.map(s => [s.kind, s]));
     kept = 0;
     for (const n of this.notes) {
-      if (!(n.t < horizonT) || /\b(crisis|crises|death|dead|died)\b|CONSERVATION FAILED/i.test(n.text)) {
+      if (!(n.t < horizonT) || n.keep) { // (2715)
         this.notes[kept++] = n;
         continue;
       }

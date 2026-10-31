@@ -135,6 +135,12 @@ describe('checkpoint 2: supported wound integration; missing kinetics explicitly
     expect(body.props.dead).toBe(1);
     expect(crises[0].resolved).toBe('died');
     expect(w.trace.failed()).toEqual([]);
+    // (2715) compaction keeps every crisis and death note the run wrote
+    const marked = w.trace.notes.filter(n => /^(crisis|death):/.test(n.text));
+    expect(marked.some(n => n.text.startsWith('crisis:'))).toBe(true);
+    expect(marked.some(n => n.text.startsWith('death:'))).toBe(true);
+    w.trace.compact(w.t + 1);
+    for (const n of marked) expect(w.trace.notes).toContainEqual(n);
   });
 
   it('body mass is conserved including shed blood at the library blood density', () => {

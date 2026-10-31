@@ -58,7 +58,7 @@ describe("trace compaction", () => {
     trace.note(0, "anatomy: assembled a");
     trace.note(0, "anatomy: assembled b");
     trace.note(0, "deficiency vitamin stage 1");
-    for (const text of ["crisis: a/fixture", "DEATH: a", "a died", "a is dead", "multiple crises"]) trace.note(0, text);
+    for (const text of ["crisis: a/fixture", "DEATH: a", "a died", "a is dead", "multiple crises"]) trace.note(0, text, { keep: true });
     trace.note(1, "anatomy: at horizon");
     trace.crises.push({ kind: "crisis", body: "a", cause: "fixture", source: "test", startedAt: 0, durationSeconds: 0, risk: null });
     const failed = structuredClone(trace.failed()), crises = structuredClone(trace.crises);
@@ -76,6 +76,24 @@ describe("trace compaction", () => {
     expect(trace.failed()).toEqual(failed);
     expect(trace.checkCount).toBe(2);
     expect(trace.noteSummaries[0].count).toBe(2);
+  });
+
+  it("keeps a note marked keep through repeated compaction whatever its wording (2715)", () => {
+    const trace = new Trace();
+    trace.note(0, "organ failure imminent", { keep: true });
+    trace.compact(5);
+    trace.compact(10);
+    expect(trace.notes).toEqual([{ t: 0, text: "organ failure imminent", keep: true }]);
+    expect(trace.noteSummaries).toEqual([]);
+    expect(structuredClone(trace.notes)).toEqual(trace.notes);
+  });
+
+  it("an unmarked note containing the word death now folds: the keyword test is gone (2715)", () => {
+    const trace = new Trace();
+    trace.note(0, "death: mentioned without a keep marker");
+    trace.compact(1);
+    expect(trace.notes).toEqual([]);
+    expect(trace.noteSummaries).toEqual([{ kind: "death", count: 1 }]);
   });
 
   it("folds without transfers, respects the strict horizon and merges counts and maximum times", () => {
