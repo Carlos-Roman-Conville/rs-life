@@ -3,7 +3,8 @@
  * Run after breathingProcess; the host owns wounds, treatment supplies and crises.
  */
 import { libraryMeta, libraryRow, libraryTable, type LibraryRow } from "./library.ts";
-import { bodyOutputs } from "./physiology.ts";
+import { bodyOutputs, type BodyOutputs } from "./physiology.ts";
+import { bodyTrainingFactor } from "./muscular.ts";
 import { bodyMassDelta } from "./nutrition.ts";
 import type { World } from "./world.ts";
 import { trackCrisis } from "./crisis.ts";
@@ -87,7 +88,7 @@ export interface CirculationOptions {
   cardiacOutputLMin?: number;
   /** Overrides the library's maximal cardiac output (null until a cited one exists). */
   maximalCardiacOutputLMin?: number;
-  /** Fraction of maximal output from muscular.trainingFactor; default 1. Read each step. */
+  /** Overrides the body's muscular training factor (1 if untracked). Read each step. */
   trainingFactor?: number;
   /** Overrides the library's volume tau (null until a cited one exists). */
   volumeTauSeconds?: number;
@@ -180,6 +181,26 @@ function hydrationPlasma(w: World, body: string) {
   out["circulation.quantities.red-cell-mass"] = p.blood_red_cells_ml;
 }
 
+/** Maximal oxygen delivery (mL O2/min), without stepping or initialising the body.
+ * Missing blood/gas inputs return null. Optional process overrides use the same
+ * computation; otherwise read the body's current Banister state and library maximum. */
+export function aerobicToday(w: World, body: string,
+  options: Pick<CirculationOptions, "trainingFactor" | "maximalCardiacOutputLMin"> = {}): number | null {
+  const p = w.registry.component(body).props;
+  const out = (p as unknown as { outputs?: BodyOutputs }).outputs;
+  const factor = options.trainingFactor ?? bodyTrainingFactor(w, body);
+  fraction(factor, "training factor");
+  const libMax = row("quantities", "maximal-cardiac-output")["Normal (70 kg man)"];
+  const maxCo = options.maximalCardiacOutputLMin ?? (typeof libMax === "number" ? libMax : null);
+  if (maxCo !== null) finite(maxCo, "maximalCardiacOutputLMin");
+  const sat = typeof out?.sao2 === "number" ? out.sao2
+    : typeof p.arterial_po2_mmhg === "number" ? saturation(p.arterial_po2_mmhg) : null;
+  const cohb = typeof out?.cohb === "number" ? out.cohb : null;
+  if (maxCo === null || sat === null || cohb === null || p.blood_volume_ml === undefined || p.blood_hb_g === undefined) return null;
+  const hb = p.blood_volume_ml > 0 ? p.blood_hb_g * 100 / p.blood_volume_ml : 0;
+  return oxygenDelivery(maxCo * factor, hb, sat, cohb);
+}
+
 /** First-order volume recovery only with a host tau and an explicit finite supply of
  * already available intravascular replacement fluid (props.circulation_fluid_ml).
  * This does not model oral absorption or manufacture red cells. */
@@ -188,9 +209,7 @@ export function circulationProcess(body: string, options: CirculationOptions = {
     const v = options[key]; if (v !== undefined) { finite(v, key); if ((key === "resistance" || key === "volumeTauSeconds") && v === 0) throw new Error(`circulation: zero ${key}`); }
   }
   const libTau = regulationLoops()["circulation.homeostasis.volume-and-salt-kidney"].tauSeconds;
-  const libMax = row("quantities", "maximal-cardiac-output")["Normal (70 kg man)"];
   const tau = options.volumeTauSeconds ?? libTau ?? undefined;
-  const maxCo = options.maximalCardiacOutputLMin ?? (typeof libMax === "number" ? libMax : undefined);
   return { name: "circulation", every: options.every ?? 1, step(w, dt) {
     fraction(options.trainingFactor ?? 1, "training factor");
     finite(dt, "time"); initialiseCirculation(w, body);
@@ -220,7 +239,7 @@ export function circulationProcess(body: string, options: CirculationOptions = {
     out["circulation.quantities.cardiac-output"] = co;
     out["circulation.quantities.oxygen-delivery-do2"] = delivery(co);
     out["circulation.quantities.mean-arterial-pressure"] = effects.pressure;
-    out.aerobic_today = delivery(maxCo === undefined ? undefined : maxCo * (options.trainingFactor ?? 1));
+    out.aerobic_today = aerobicToday(w, body, options);
     for (const r of libraryTable("circulation", "bleeding")) out[String(r.id)] = r.id === effects.row.id ? 1 : 0;
     // The row that says dying is unsurvivable untreated: a loss at that class opens a crisis, with the row as its source.
     for (const r of libraryTable("circulation", "bleeding")) {

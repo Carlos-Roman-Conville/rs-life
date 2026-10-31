@@ -4,6 +4,7 @@
 import { libraryColumns, libraryRow, libraryTable } from "./library.ts";
 import type { Trace } from "./trace.ts";
 import type { Process } from "./scheduler.ts";
+import type { World } from "./world.ts";
 import { bodyOutputs } from "./physiology.ts";
 
 const table = (name: string) => libraryTable("muscular", name);
@@ -209,6 +210,22 @@ export function muscularBanisterDay(state: { fitness: number; fatigue: number },
   const fitness = state.fitness * Math.exp(-1 / value("tau-fitness")) + loadMetHours;
   const fatigue = state.fatigue * Math.exp(-1 / value("tau-fatigue")) + loadMetHours;
   return { fitness, fatigue, performance: banisterPerformance({ fitness, fatigue }, base) };
+}
+
+/** Read the body's daily Banister state; an untracked body retains full capacity. */
+export function bodyTrainingFactor(w: World, body: string): number {
+  const p = w.registry.component(body).props;
+  if (p.muscular_fitness === undefined && p.muscular_fatigue === undefined) return 1;
+  return trainingFactor({ fitness: p.muscular_fitness, fatigue: p.muscular_fatigue });
+}
+
+/** Host calls once per training day with its daily MET-hour load, including rest days.
+ * Stores only fitness/fatigue; the existing pure daily calculation owns adaptation. */
+export function bodyBanisterDay(w: World, body: string, loadMetHours: number, base: number) {
+  const p = w.registry.component(body).props;
+  const next = muscularBanisterDay({ fitness: p.muscular_fitness ?? 0, fatigue: p.muscular_fatigue ?? 0 }, loadMetHours, base);
+  p.muscular_fitness = next.fitness; p.muscular_fatigue = next.fatigue;
+  return next;
 }
 
 export function muscularOutputs(state: MuscularState) {

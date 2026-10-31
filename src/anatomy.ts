@@ -11,6 +11,7 @@ import type { Component } from "./registry.ts";
 import type { Process } from "./scheduler.ts";
 import type { World } from "./world.ts";
 import { crisesOf, trackCrisis, type Crisis } from "./crisis.ts";
+import { bodyTrainingFactor } from "./muscular.ts";
 
 export type AnatomyTable = "organs" | "tissues" | "damage_function" | "timescales" | "species";
 export const anatomyRules = (table: AnatomyTable) => Object.fromEntries(libraryTable("anatomy", table).map(r => [String(r.id), r]));
@@ -231,7 +232,8 @@ export function assemblyCirculation(a: BodyAssembly, options: CirculationOptions
   return { name: "circulation", every: options.every ?? 1, step(w, dt) {
     const b = w.registry.component(a.body);
     const resting = b.props.blood_lost_ml === 0 && a.organs.heart?.function === 1;
-    circulationProcess(a.body, { ...options, cardiacOutputLMin: options.cardiacOutputLMin ??
+    circulationProcess(a.body, { ...options, trainingFactor: options.trainingFactor ?? bodyTrainingFactor(w, a.body),
+      cardiacOutputLMin: options.cardiacOutputLMin ??
       (options.resistance === undefined && resting ? b.mass * a.profile.cardiacOutputLMinKg : undefined) }).step(w, dt);
   } };
 }

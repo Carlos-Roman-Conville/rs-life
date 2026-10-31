@@ -1,6 +1,8 @@
 import validation from "../data/library/validation.json";
 import { describe, it, expect } from "vitest";
-import { muscularBanisterDay, trainingFactor } from "../src/muscular.ts";
+import { bodyBanisterDay, bodyTrainingFactor, muscularBanisterDay, trainingFactor } from "../src/muscular.ts";
+import { assembleBody, assemblyCirculation } from "../src/anatomy.ts";
+import { aerobicToday } from "../src/circulation.ts";
 import { libraryRow, libraryMeta, libraryTable } from "../src/library.ts";
 import { defaultRegistry } from "../src/registry.ts";
 import { World } from "../src/world.ts";
@@ -130,6 +132,50 @@ describe("conditional unmeasured hazards", () => {
 
 
 describe("one aerobic training pathway (2635)", () => {
+  it("Banister to aerobic (2751): assembled circulation follows daily training and the pure reader exactly", () => {
+    const { w, b, out } = fixture();
+    const assembly = assembleBody(w, "body"), process = assemblyCirculation(assembly);
+    expect(bodyTrainingFactor(w, "body")).toBe(1);
+    const untracked = aerobicToday(w, "body");
+    process.step(w, 0);
+    expect(out.aerobic_today).toBe(untracked);
+    let state = bodyBanisterDay(w, "body", 0, 0);
+    const baselineFactor = trainingFactor(state), baseline = aerobicToday(w, "body")!;
+    let rises = 0, previous = baselineFactor;
+    for (let day = 0; day < 30; day++) {
+      state = bodyBanisterDay(w, "body", 8, 0);
+      const factor = trainingFactor(state);
+      expect(bodyTrainingFactor(w, "body")).toBe(factor);
+      const before = JSON.stringify(b.props), time = w.t;
+      const read = aerobicToday(w, "body");
+      expect(JSON.stringify(b.props)).toBe(before);
+      expect(w.t).toBe(time);
+      expect(read).toBe(oxygenDelivery(20 * factor, 15, saturation(95)));
+      process.step(w, 0);
+      expect(out.aerobic_today).toBe(read);
+      if (factor > previous) rises++;
+      previous = factor;
+    }
+    expect(rises).toBeGreaterThan(0);
+    expect(previous).toBeGreaterThan(baselineFactor);
+    expect(out.aerobic_today).toBeGreaterThan(baseline);
+    const overrides = { trainingFactor: 0, maximalCardiacOutputLMin: 25 };
+    assemblyCirculation(assembly, overrides).step(w, 0);
+    expect(out.aerobic_today).toBe(0);
+    overrides.trainingFactor = 0.7;
+    assemblyCirculation(assembly, overrides).step(w, 0);
+    expect(out.aerobic_today).toBe(aerobicToday(w, "body", overrides));
+    expect(out.aerobic_today).toBe(oxygenDelivery(25 * 0.7, 15, saturation(95)));
+  });
+  it("aerobicToday leaves an uninitialised body untouched and preserves missing gas inputs", () => {
+    const { w, b, out } = fixture();
+    delete out.cohb;
+    expect(aerobicToday(w, "body")).toBeNull();
+    delete b.props.outputs;
+    const before = JSON.stringify(b.props);
+    expect(aerobicToday(w, "body")).toBeNull();
+    expect(JSON.stringify(b.props)).toBe(before);
+  });
   it("aerobic_today is maximal oxygen delivery in mL O2/min for the 70 kg reference", () => {
     const { w, out } = fixture();
     circulationProcess("body").step(w, 0);
