@@ -1,3 +1,31 @@
 ## plants (2807)
 
 - (2807) scaffold: four species tables await research units
+- (2808) sourced: plants.forms.canopy_light_interception Hirose 2005 (PMC4246794) opened; the 1953 paper not opened and the equation image not read, so the exponential is written from the page's definitions
+- (2808) sourced: plants.forms.canopy_extinction_k Hirose 2005 for K 0.3 to 2.0 overall, 0.7 to 1.0 horizontal, 0.3 to 0.5 vertical
+- (2808) sourced: plants.forms.water_light_at_depth Mobley, Ocean Optics Web Book, K functions; the PAR and seagrass reading is not in that page (searched: no opened page gave PAR_z for Thalassia)
+- (2808) sourced: plants.forms.par_fraction_of_shortwave Olofsson et al. 2007 (0.27 to 0.48, mean 0.43) and Tong et al. 2010 (0.37 to 0.43, mean 0.40) abstract pages opened; no global mean opened
+- (2808) sourced: plants.forms.rue_definition Caram et al. 2025 definition; Monteith 1977 full text not opened
+- (2808) sourced: plants.forms.rue_monteith_total_solar Monteith 1977 abstract via synapsesocial record; the Royal Society page refused and gave no C3 or C4 values
+- (2808) sourced: plants.forms.rue_c3_grass_intercepted_par Caram et al. 2025; the cited originals not opened, so no C3 range found (searched: Sinclair and Muchow 1999 chapter not reachable)
+- (2808) sourced: plants.forms.rue_c4_field_range Caram et al. 2025 for the 1.0 to 2.0 field range; no sugarcane value opened
+- (2808) sourced: plants.forms.temperature_beta_function Yan and Hunt 1999 abstract (equation markup garbled); searched: the Tmin form of the paper, the OCL and MDPI pages that reprint it refused
+- (2808) sourced: plants.forms.fao56_ks FAO-56 Ch 8 definitions plus SWIM-RS text for the algebra (equation image not read); searched: Table 22 p values
+- (2808) sourced: plants.forms.fao56_etc_adjusted FAO-56 Ch 8 Eq 80 and Eq 81
+- (2808) sourced: plants.forms.fao56_crop_coefficient FAO-56 Ch 6 Eq 58 and the three-value curve
+- (2808) sourced: plants.forms.salinity_threshold_slope FAO Paper 29 Rev 1 Annex 1; Maas and Hoffman 1977 not opened
+- (2808) sourced: plants.forms.liebig_law_of_minimum Tang and Riley 2021; van der Ploeg et al. 1999 located but its text not opened; the original Sprengel and Liebig texts not opened
+- (2808) sourced: plants.forms.critical_nutrient_concentration Mosaic and UGA plant-analysis pages; searched: Ulrich 1952 and Ulrich and Hills 1967 not open access, so the original is not opened
+- (2808) sourced: plants.forms.respiration_growth_maintenance Wendering and Nikoloski 2023 and Amthor 2000 abstract; searched: McCree 1970 and Thornley 1970 originals, and typical gR and mR values
+- (2808) sourced: plants.forms.respiration_q10 Atkin and Tjoelker 2003 abstract; searched: a Q10 range for plant respiration, none opened
+- (2808) sourced: plants.forms.allometry_agb_eq4 BIOMASS computeAGB page for Eq 4; searched: Chave et al. 2014 full text (publisher, HAL, Smithsonian pages refused)
+- (2808) sourced: plants.forms.allometry_agb_eq4_coefficient BIOMASS computeAGB page
+- (2808) sourced: plants.forms.allometry_agb_eq4_exponent BIOMASS computeAGB page
+- (2808) sourced: plants.forms.allometry_agb_eq7_no_height BIOMASS computeAGB page; the unmodified Eq 7 coefficients not seen
+- (2808) sourced: plants.forms.penman_monteith_eto FAO-56 Ch 3 units, NCL code and Wikipedia for the algebra (equation image not read); Wikipedia lists T in K and Pa K-1, a unit mismatch with FAO-56
+- (2808) sourced: plants.forms.penman_monteith_reference_height FAO-56 Ch 3
+- (2808) sourced: plants.forms.penman_monteith_reference_surface_resistance FAO-56 Ch 3
+- (2808) sourced: plants.forms.penman_monteith_reference_albedo FAO-56 Ch 3
+- (2808) sourced: plants.forms.stress_combination_multiplicative Zhang et al. 2017 Eq 7; searched: a crop-model manual (APSIM, DSSAT, CropSyst, EPIC pages refused or gave no equation)
+- (2808) sourced: plants.forms.stress_combination_minimum Robertson et al. APSIM canola page
+- (2808) report: forms where an opened source differs from DESIGN.md 1.3. (1) Liebig: Tang and Riley 2021 date Sprengel's proposal to 1826, DESIGN.md says 1828; the dated original was not opened, so use 1826 only after a check. (2) Cardinal temperature: the Yan and Hunt abstract's equation has Tmax and Topt only (T measured from 0 C), not the Tmin, Topt, Tmax form DESIGN.md assumes; the Tmin-shifted form was not seen in an opened page, so a code unit must not take it from memory. (3) Multiplying stress factors: CASA (Zhang 2017 Eq 7) multiplies temperature and moisture scalars, but APSIM canola (Robertson et al.) takes the minimum of a radiation-rate and a water-supply rate, so the product is a published practice, not the only one. (4) Chave et al. 2014: the paper was not opened; the coefficients come from the BIOMASS package page, which gives AGB in Mg, so confirm the unit against the paper before a code unit uses it. (5) Evidence level 2 is entered on every row without PLATFORM.md section 4 to hand; the keeper should confirm. (6) Rows with no value: RUE for C3 crops and sugarcane has no opened range (only a 1.4 C3 grass mean and a 1.0 to 2.0 C4 field range), and no Q10 range or growth and maintenance coefficients were found.
