@@ -263,6 +263,16 @@ describe("circulation saturation ownership (2725)", () => {
   };
   const accuracy = Number(ref("severinghaus-accuracy").Value);
 
+  it("validation (2725): saturation at 100 mmHg exceeds the reference band plus cited fit accuracy (REAL-34)", () => {
+    // https://mobile.fpnotebook.com/Lung/Lab/OxygnStrtn.htm
+    // Record the observed disagreement; a missing reference must fail this normal test.
+    const r = ref("sat-100");
+    expect(r.source).toBe("open");
+    expect(r.High).not.toBeNull();
+    expect(accuracy).toBeGreaterThan(0);
+    expect(saturation(100)).toBeGreaterThan(Number(r.High) / 100 + accuracy);
+  });
+
   it("validation (2725): P50 lies within the recorded normal adult range", () => {
     // https://derangedphysiology.com/main/cicm-primary-exam/required-reading/respiratory-system/Chapter%201131/p50-value-blood-gas-sample
     // https://en.wikipedia.org/wiki/Oxygen%E2%80%93hemoglobin_dissociation_curve
@@ -278,11 +288,8 @@ describe("circulation saturation ownership (2725)", () => {
   // https://litfl.com/oxygen-haemoglobin-dissociation-curve/
   // https://mobile.fpnotebook.com/Lung/Lab/OxygnStrtn.htm
   // Accuracy: https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=%22Simple%2C%20accurate%20equations%20for%20human%20blood%20O2%20dissociation%22&format=json&resultType=core
-  // 100 disagrees with its secondary reference bracket even with the
-  // published fit accuracy. Expected failures preserve the unmet checks, not a wider tolerance.
-  for (const po2 of [27, 40, 60, 100]) {
-    const check = po2 === 100 ? it.fails : it;
-    check(`validation (2725): saturation at ${po2} mmHg matches the reference within cited fit accuracy`, () => {
+  for (const po2 of [27, 40, 60]) {
+    it(`validation (2725): saturation at ${po2} mmHg matches the reference within cited fit accuracy`, () => {
       const r = ref(`sat-${po2}`);
       expect(r.source).toBe("open");
       expect(accuracy).toBeGreaterThan(0);
