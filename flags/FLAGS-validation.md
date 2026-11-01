@@ -26,3 +26,58 @@ Figures for `data/library/validation.json`, taken from pages opened in this unit
 
 - (2763) sourced: `scurvy_consequences` from Lind's 1753 Treatise (archive.org b30507054, OCR text): healed ulcers breaking out afresh, one case of a nearly healed arm wound reopening as the first sign (about a month from near-healed to scurvy), gums swelling and bleeding, teeth becoming loose and often falling out, sudden death on being moved or on exertion. Modern: Gandhi 2023 (PMC10296835: collagen-synthesis mechanism, sudden death, onset 4 to 12 weeks, plasma under 20 and under 11.4 micromol/L), Pimentel 2003 and Francescone and Levitt (Cutis) giving death by infection or sudden death with late intracerebral and other haemorrhage, and Desenclos 1989 (outbreaks 3 to 4 months after arrival). All second-hand through a fetch tool's summaries; Lind's stage labels are that tool's reading.
 - (2763) searched: tooth loss in a modern clinical review (Gandhi, Francescone and Wikipedia mention gum disease or loosening only), a rate or timing for reopening of old wounds, and any scurvy case-fatality rate or time to death. Nothing found; rows are null with the sources' words. Bourne 1946 (Proc Nutr Soc, the source of a search summary naming Lind 1753, Mead 1762 and Walter on Anson's voyage reopening scars) opened only as scanned images with no text; the Deirawan 2020 pathology review opened as abstract only; StatPearls and MDPI refused the fetch. So the Walter and Mead claims are not in the table.
+
+## Per-process registry declarations (2765)
+
+The 22 processes represent the concrete Process factories, including reactionProcess. bodyProcess, roomProcess and assemblyBreathing are wrappers; assemblyCirculation delegates to circulation. Assembly, meals, training-day updates and the scheduler itself are not separate scheduled Process factories. Reads name available registry quantities; callback-only inputs and unregistered props cannot be named here.
+
+Periods are milliseconds, using the one-second fast step in src/lab/still.ts and each factory's default every (1, 10 or 60). Phase fast and insertion order are retained. Hosts overriding dt/every must supply their cadence.
+
+Registry ownership is now assigned. Each declared output has one writer across processes and ports. air.pressure is supplied by pressureAtAltitude, body.crisis by the shared crisis ledger, and component.heat by the substrate ledger: these owners have output ports because none has a scheduled Process factory. This avoids inventing scheduled processes for host initialization or shared infrastructure. plugin.state is a host input outside these factories and is not declared. Host-only meal and assembly outputs remain external reads.
+
+Other code writers are represented as reads in the affected processes, including overlaps within one process. The flags retain the non-owner mechanisms from the registry overlap audit, including stateless helpers and host-only formula/assembly paths. A helper may be called from several processes; blood_ledger writes are declared only under circulation, while medicine's calls are recorded below. component.heat ownership is the registry contract; this declaration does not add an energy ledger to world.ts or remove any existing heat transfers.
+
+- (2765) multi-writer: body.pao2: written by realism.gas.alveolar_po2 in code; registry writer realism.gas.breathing_process
+- (2765) multi-writer: body.pao2: written by realism.gas.ventilation_drive in code; registry writer realism.gas.breathing_process
+- (2765) multi-writer: air.pressure: written by realism.gas.altitude_inspired_po2 in code; registry writer realism.atmos.barometric_pressure
+- (2765) multi-writer: body.blood_lost: written by realism.circulation.bleed_rate in code; registry writer realism.circulation.blood_ledger
+- (2765) multi-writer: body.blood_volume: written by realism.circulation.volume_recovery in code; registry writer realism.circulation.blood_ledger
+- (2765) multi-writer: body.crisis: written by realism.medicine.disease_course in code; registry writer realism.infra.crisis_record
+- (2765) multi-writer: body.crisis: written by realism.physiology.hydration_band in code; registry writer realism.infra.crisis_record
+- (2765) multi-writer: body.rmr: written by realism.anatomy.species_profile in code; registry writer realism.physiology.rmr
+- (2765) multi-writer: body.rmr: written by realism.nutri.rmr_mifflin in code; registry writer realism.physiology.rmr
+- (2765) multi-writer: body.sweat: written by realism.physiology.heat_balance in code; registry writer realism.physiology.sweat
+- (2765) multi-writer: component.heat: written by realism.chem.carbon_combustion_charcoal in code; registry writer realism.infra.world_conservation
+- (2765) multi-writer: component.heat: written by realism.chem.heat_per_kg in code; registry writer realism.infra.world_conservation
+- (2765) multi-writer: component.heat: written by realism.thermo.metabolic_heat in code; registry writer realism.infra.world_conservation
+- (2765) multi-writer: component.vessel_t: written by realism.chem.reaction_extent in code; registry writer realism.thermo.boiling
+- (2765) multi-writer: body.sao2: written by realism.gas.breathing_process in code; registry writer realism.gas.hb_saturation
+- (2765) multi-writer: air.gas_masses: written by realism.gas.sources_sinks in code; registry writer realism.gas.room_box
+- (2765) multi-writer: air.gas_masses: written by realism.gas.breathing_process in code; registry writer realism.gas.room_box
+- (2765) multi-writer: air.gas_masses: written by realism.physiology.water_balance in code; registry writer realism.gas.room_box
+- (2765) multi-writer: air.gas_masses: written by realism.chem.carbon_combustion_charcoal in code; registry writer realism.gas.room_box
+- (2765) multi-writer: air.gas_masses: written by realism.thermo.surface_evaporation in code; registry writer realism.gas.room_box
+- (2765) multi-writer: air.gas_masses: written by realism.thermo.boiling in code; registry writer realism.gas.room_box
+- (2765) multi-writer: air.gas_masses: written by realism.thermo.condensation_ntu in code; registry writer realism.gas.room_box
+- (2765) multi-writer: air.room_t: written by realism.physiology.heat_balance in code; registry writer realism.gas.room_box
+- (2765) multi-writer: air.room_t: written by realism.chem.carbon_combustion_charcoal in code; registry writer realism.gas.room_box
+- (2765) multi-writer: air.room_t: written by realism.thermo.convective_losses in code; registry writer realism.gas.room_box
+- (2765) multi-writer: air.room_t: written by realism.thermo.surface_evaporation in code; registry writer realism.gas.room_box
+- (2765) multi-writer: air.room_t: written by realism.thermo.room_envelope_walls in code; registry writer realism.gas.room_box
+- (2765) multi-writer: body.mass: written by realism.physiology.water_balance in code; registry writer realism.nutrition.body_mass
+- (2765) multi-writer: body.pool_contents: written by realism.nutrition.pools in code; registry writer realism.nutrition.eat_meal
+- (2765) multi-writer: body.blood_lost: written by realism.circulation.blood_ledger in code; registry writer realism.circulation.blood_ledger (medicineProcess calls bleed; the declared process writer is circulation)
+- (2765) multi-writer: body.blood_volume: written by realism.circulation.blood_ledger in code; registry writer realism.circulation.blood_ledger (medicineProcess calls bleed; the declared process writer is circulation)
+- (2765) multi-writer: body.hb_mass: written by realism.circulation.blood_ledger in code; registry writer realism.circulation.blood_ledger (medicineProcess calls bleed; the declared process writer is circulation)
+- (2765) multi-writer: component.vessel_t: written by realism.chem.carbon_combustion_charcoal in code; registry writer realism.thermo.boiling
+- (2765) multi-writer: component.vessel_t: written by realism.thermo.convective_losses in code; registry writer realism.thermo.boiling
+- (2765) multi-writer: component.vessel_t: written by realism.thermo.surface_evaporation in code; registry writer realism.thermo.boiling
+- (2765) multi-writer: component.heat: written by realism.physiology.energy_expenditure in code; registry writer realism.infra.world_conservation
+- (2765) multi-writer: component.heat: written by realism.physiology.heat_balance in code; registry writer realism.infra.world_conservation
+- (2765) multi-writer: component.heat: written by realism.gas.room_box in code; registry writer realism.infra.world_conservation
+- (2765) multi-writer: component.heat: written by realism.thermo.convective_losses in code; registry writer realism.infra.world_conservation
+- (2765) multi-writer: component.heat: written by realism.thermo.surface_evaporation in code; registry writer realism.infra.world_conservation
+- (2765) multi-writer: component.heat: written by realism.thermo.room_envelope_walls in code; registry writer realism.infra.world_conservation
+- (2765) multi-writer: component.heat: written by realism.thermo.boiling in code; registry writer realism.infra.world_conservation
+- (2765) multi-writer: component.heat: written by realism.thermo.condensation_ntu in code; registry writer realism.infra.world_conservation
+- (2765) multi-writer: component.heat: written by realism.chem.reaction_extent in code; registry writer realism.infra.world_conservation

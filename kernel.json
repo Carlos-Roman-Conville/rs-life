@@ -1,44 +1,651 @@
 {
   "processes": [
     {
-      "id": "realism.step",
+      "id": "realism.environment.environment",
       "mechanisms": [
-        "realism.env.diurnal_curve",
-        "realism.nutrition.eat_meal",
-        "realism.gas.room_box",
+        "realism.env.place_process",
+        "realism.env.exposure_by_terrain",
+        "realism.env.wbgt_bom",
+        "realism.env.wind_chill",
+        "realism.env.daylight",
+        "realism.env.cold_water_immersion"
+      ],
+      "writes": [
+        "place.props_wbgt_c",
+        "place.outputs",
+        "place.wbgt_c",
+        "place.sun_exposure",
+        "place.felt_wind",
+        "place.wet",
+        "place.wbgt",
+        "place.felt_t",
+        "place.is_day",
+        "place.sunburn_fraction",
+        "place.exhaustion_time",
+        "place.survival_time"
+      ],
+      "reads": [
+        "air.room_t",
+        "air.rh",
+        "place.t"
+      ],
+      "period": 60000,
+      "phase": "fast",
+      "order": "insertion"
+    },
+    {
+      "id": "realism.physiology.physiology",
+      "mechanisms": [
+        "realism.physiology.rmr",
         "realism.physiology.energy_expenditure",
+        "realism.physiology.fatigue_met_hours",
+        "realism.physiology.body_area",
+        "realism.physiology.wbgt_core_drift",
+        "realism.physiology.core_state",
+        "realism.physiology.heat_balance",
+        "realism.physiology.sweat",
+        "realism.physiology.metabolic_water",
+        "realism.physiology.urine",
+        "realism.physiology.water_balance",
+        "realism.physiology.acclimatisation",
+        "realism.physiology.pal",
+        "realism.physiology.sleep_debt",
+        "realism.physiology.circadian",
+        "realism.physiology.alertness",
+        "realism.physiology.hydration_band",
+        "realism.gas.exposure_accumulation"
+      ],
+      "writes": [
+        "body.expenditure",
+        "body.heat",
+        "body.fatigue_met_hours",
+        "body.area",
+        "body.core_c",
+        "body.work_capacity_heat",
+        "body.sweat_at_max_flag",
+        "body.dry_heat",
+        "body.required_evaporation",
+        "body.water",
+        "body.urine",
+        "body.waterdeficitkg",
+        "body.waterdeficitpct",
+        "body.acclimatisation",
+        "body.pal",
+        "body.sleep_debt",
+        "body.alertness_multiplier",
+        "body.factor",
+        "body.alertness",
+        "body.endurance_hydration",
+        "body.work_capacity_hydration",
+        "air.ppmmin",
+        "air.peak",
+        "body.rmr",
+        "body.sweat"
+      ],
+      "reads": [
+        "body.mass",
+        "body.rmr",
+        "body.kcal_in",
+        "body.glycogen",
+        "body.waterdeficitkg",
+        "body.waterdeficitpct",
+        "body.core_c",
+        "body.acclimatisation",
+        "body.sleep_debt",
+        "body.fatigue_met_hours",
+        "air.room_t",
+        "air.rh",
+        "air.ppm_gases",
+        "place.props_wbgt_c",
+        "body.sweat",
+        "body.crisis",
+        "component.heat",
+        "air.gas_masses"
+      ],
+      "period": 10000,
+      "phase": "fast",
+      "order": "insertion"
+    },
+    {
+      "id": "realism.atmosphere.room_air",
+      "mechanisms": [
+        "realism.gas.room_box",
+        "realism.gas.ideal_gas",
+        "realism.thermo.water_vapour_pressure"
+      ],
+      "writes": [
+        "air.gas_masses",
+        "air.rh",
+        "air.ppm_gases",
+        "air.room_t",
+        "air.n",
+        "air.rho_air",
+        "component.p_sat"
+      ],
+      "reads": [
+        "air.gas_masses",
+        "air.room_t",
+        "air.pressure",
+        "place.t",
+        "component.heat"
+      ],
+      "period": 1000,
+      "phase": "fast",
+      "order": "insertion"
+    },
+    {
+      "id": "realism.atmosphere.breathing",
+      "mechanisms": [
         "realism.gas.breathing_process",
-        "realism.anatomy.assembly",
+        "realism.gas.sources_sinks",
+        "realism.gas.alveolar_po2",
+        "realism.gas.ventilation_drive",
+        "realism.gas.cohb",
+        "realism.gas.hb_saturation"
+      ],
+      "writes": [
+        "body.cohb",
+        "body.ventilation_l_min",
+        "air.ve",
+        "air.paco2",
+        "air.cohb",
+        "body.pao2"
+      ],
+      "reads": [
+        "air.ppm_gases",
+        "air.gas_masses",
+        "air.pressure",
+        "air.room_t",
+        "body.expenditure",
+        "body.mass",
+        "body.cohb",
+        "body.respiratoryprofile",
+        "body.pao2",
+        "body.sao2"
+      ],
+      "period": 10000,
+      "phase": "fast",
+      "order": "insertion"
+    },
+    {
+      "id": "realism.circulation.circulation",
+      "mechanisms": [
+        "realism.circulation.blood_ledger",
+        "realism.circulation.normal_blood_volume",
+        "realism.circulation.volume_recovery",
+        "realism.circulation.bleeding_class",
+        "realism.circulation.cardiac_output",
+        "realism.circulation.o2_delivery",
+        "realism.circulation.aerobic_today",
+        "realism.gas.hb_saturation"
+      ],
+      "writes": [
+        "body.hb_mass",
+        "body.volume",
+        "body.class_i_iv",
+        "body.map",
+        "body.perfusion_per_organ",
+        "body.deathrateperhour",
+        "body.co",
+        "body.do2",
+        "body.aerobic_today",
+        "body.sao2",
+        "body.blood_lost",
+        "body.blood_volume"
+      ],
+      "reads": [
+        "body.mass",
+        "body.blood_volume",
+        "body.blood_lost",
+        "body.hb_mass",
+        "body.cohb",
+        "body.sao2",
+        "body.waterdeficitpct",
+        "body.fitness",
+        "body.fatigue",
+        "body.function_per_organ",
+        "body.pao2",
+        "body.crisis"
+      ],
+      "period": 1000,
+      "phase": "fast",
+      "order": "insertion"
+    },
+    {
+      "id": "realism.nutrition.nutrition",
+      "mechanisms": [
+        "realism.nutrition.pools",
+        "realism.nutrition.energy_store",
+        "realism.nutrition.body_mass",
+        "realism.nutrition.starvation_limit",
+        "realism.nutrition.requirement"
+      ],
+      "writes": [
+        "body.pool_level",
+        "body.deficiency_stage",
+        "body.glycogen",
+        "body.fat_kg",
+        "body.unplaced_energy",
+        "body.mass",
+        "body.starvation_limit",
+        "body.need"
+      ],
+      "reads": [
+        "body.pool_contents",
+        "body.pool_level",
+        "body.deficiency_stage",
+        "body.kcal_in",
+        "body.expenditure",
+        "body.sweat",
+        "body.blood_lost",
+        "body.mass",
+        "body.glycogen",
+        "body.fat_kg",
+        "body.waterdeficitkg",
+        "body.rmr"
+      ],
+      "period": 10000,
+      "phase": "fast",
+      "order": "insertion"
+    },
+    {
+      "id": "realism.anatomy.anatomy",
+      "mechanisms": [
         "realism.anatomy.damage_repair",
         "realism.anatomy.organ_function",
         "realism.anatomy.tissue_collagen",
-        "realism.infra.scheduler"
+        "realism.anatomy.crisis_floors"
       ],
       "writes": [
-        "place.t",
-        "body.kcal_in",
-        "body.pool_contents",
-        "body.water_in",
-        "air.gas_masses",
-        "air.ppm_gases",
-        "air.rh",
-        "air.room_t",
-        "body.expenditure",
-        "body.heat",
-        "air.outputs_o2_frac_co2_ppm_sao2_cohb_ventilation_l_",
-        "body.organ_tissue_components_graph_edges",
         "body.damage",
         "body.function_per_organ",
-        "body.cascade_statement_kineticsseconds",
+        "body.organ_cascade_state",
         "body.collagen_integrity",
-        "world.world_advanced"
+        "body.crisis_record"
       ],
-      "reads": [],
+      "reads": [
+        "body.anatomy_graph",
+        "body.pool_level",
+        "body.damage",
+        "body.function_per_organ",
+        "body.collagen_integrity",
+        "body.perfusion_per_organ",
+        "body.class_i_iv",
+        "world.crisis_record",
+        "body.rmr",
+        "body.crisis"
+      ],
+      "period": 1000,
+      "phase": "fast",
+      "order": "insertion"
+    },
+    {
+      "id": "realism.muscular.fatigue",
+      "mechanisms": [
+        "realism.muscular.activation",
+        "realism.muscular.fatigue_3cc"
+      ],
+      "writes": [
+        "body.activation_per_group",
+        "body.muscle_compartments_3cc"
+      ],
+      "reads": [
+        "body.muscle_compartments_3cc"
+      ],
+      "period": 10000,
+      "phase": "fast",
+      "order": "insertion"
+    },
+    {
+      "id": "realism.neurology.neurology",
+      "mechanisms": [
+        "realism.neurology.pk",
+        "realism.neurology.occupancy",
+        "realism.neurology.baseline_drivers",
+        "realism.neurology.tone",
+        "realism.neurology.circuits",
+        "realism.neurology.breathing_drive",
+        "realism.neurology.sleep_wake",
+        "realism.neurology.tolerance_dependence_withdrawal",
+        "realism.neurology.alcohol_withdrawal_stage"
+      ],
+      "writes": [
+        "body.conc",
+        "body.burden",
+        "body.occupancy",
+        "body.tone_move_per_system",
+        "body.age_scale",
+        "body.tone_per_system",
+        "body.circuit_outputs",
+        "body.respiratory_drive",
+        "body.hours_awake",
+        "body.sensitivity",
+        "body.dependence",
+        "body.withdrawal_swing",
+        "body.stage"
+      ],
+      "reads": [
+        "body.mass",
+        "body.burden",
+        "body.conc",
+        "body.sensitivity",
+        "body.dependence",
+        "body.hours_awake",
+        "body.sleep_debt",
+        "body.core_c",
+        "body.pain",
+        "body.expenditure",
+        "place.props_wbgt_c"
+      ],
+      "period": 10000,
+      "phase": "fast",
+      "order": "insertion"
+    },
+    {
+      "id": "realism.medicine.medicine",
+      "mechanisms": [
+        "realism.medicine.process",
+        "realism.medicine.air_conditions",
+        "realism.medicine.disease_course",
+        "realism.medicine.immunity",
+        "realism.medicine.healing_multiplier",
+        "realism.medicine.pain",
+        "realism.circulation.bleed_rate",
+        "realism.circulation.blood_ledger"
+      ],
+      "writes": [
+        "body.medicine_outputs",
+        "body.stage_per_condition",
+        "body.stage_incubating_ill",
+        "body.fatal_draw_day",
+        "body.immune_level",
+        "body.multiplier_on_healing_time",
+        "body.pain"
+      ],
+      "reads": [
+        "body.wound_record",
+        "body.collagen_integrity",
+        "body.sleep_debt",
+        "body.expenditure",
+        "body.kcal_in",
+        "body.stage_incubating_ill",
+        "body.immune_level",
+        "body.blood_volume",
+        "body.hb_mass",
+        "air.ppm_gases",
+        "air.paco2",
+        "body.cohb",
+        "body.sao2",
+        "body.blood_lost",
+        "body.crisis"
+      ],
+      "period": 1000,
+      "phase": "fast",
+      "order": "insertion"
+    },
+    {
+      "id": "realism.process.control",
+      "mechanisms": [
+        "realism.infra.operator_control"
+      ],
+      "writes": [
+        "world.feedkgpers"
+      ],
+      "reads": [
+        "component.condition_control",
+        "world.uniform"
+      ],
+      "period": 10000,
+      "phase": "fast",
+      "order": "insertion"
+    },
+    {
+      "id": "realism.process.combustion",
+      "mechanisms": [
+        "realism.chem.carbon_combustion_charcoal"
+      ],
+      "writes": [
+        "component.co2",
+        "component.co",
+        "component.o2_used"
+      ],
+      "reads": [
+        "world.feedkgpers",
+        "component.condition_capability",
+        "air.gas_masses",
+        "air.room_t",
+        "component.heat",
+        "component.vessel_t"
+      ],
+      "period": 1000,
+      "phase": "fast",
+      "order": "insertion"
+    },
+    {
+      "id": "realism.process.losses",
+      "mechanisms": [
+        "realism.thermo.convective_losses",
+        "realism.thermo.heat_flow_UA"
+      ],
+      "writes": [
+        "component.heat_to_room",
+        "component.q"
+      ],
+      "reads": [
+        "air.room_t",
+        "component.vessel_t",
+        "component.heat"
+      ],
+      "period": 1000,
+      "phase": "fast",
+      "order": "insertion"
+    },
+    {
+      "id": "realism.process.evaporation",
+      "mechanisms": [
+        "realism.thermo.surface_evaporation",
+        "realism.thermo.water_boiling_point",
+        "realism.thermo.water_latent_heat",
+        "realism.thermo.water_vapour_pressure"
+      ],
+      "writes": [
+        "component.evaporation",
+        "component.latent_cooling",
+        "component.t_boil",
+        "component.l"
+      ],
+      "reads": [
+        "air.gas_masses",
+        "air.room_t",
+        "air.pressure",
+        "component.vessel_t",
+        "component.heat"
+      ],
+      "period": 1000,
+      "phase": "fast",
+      "order": "insertion"
+    },
+    {
+      "id": "realism.process.walls",
+      "mechanisms": [
+        "realism.thermo.room_envelope_walls",
+        "realism.thermo.heat_flow_UA"
+      ],
+      "writes": [
+        "component.wall_t_change",
+        "component.room_t_change"
+      ],
+      "reads": [
+        "air.room_t",
+        "component.wall_properties",
+        "place.t",
+        "component.heat"
+      ],
+      "period": 1000,
+      "phase": "fast",
+      "order": "insertion"
+    },
+    {
+      "id": "realism.process.boiling",
+      "mechanisms": [
+        "realism.thermo.boiling",
+        "realism.thermo.water_boiling_point",
+        "realism.thermo.water_latent_heat"
+      ],
+      "writes": [
+        "component.vapour_mass",
+        "component.vessel_t"
+      ],
+      "reads": [
+        "air.pressure",
+        "component.vessel_t",
+        "component.t_boil",
+        "air.gas_masses",
+        "component.heat"
+      ],
+      "period": 1000,
+      "phase": "fast",
+      "order": "insertion"
+    },
+    {
+      "id": "realism.process.condensation",
+      "mechanisms": [
+        "realism.thermo.condensation_ntu",
+        "realism.thermo.counterflow_ntu",
+        "realism.thermo.natural_convection_cylinder",
+        "realism.thermo.water_latent_heat"
+      ],
+      "writes": [
+        "component.condensate",
+        "component.tub_heat",
+        "component.epsilon",
+        "component.h"
+      ],
+      "reads": [
+        "component.vapour_mass",
+        "component.condition_capability",
+        "air.room_t",
+        "component.heat",
+        "air.gas_masses"
+      ],
+      "period": 1000,
+      "phase": "fast",
+      "order": "insertion"
+    },
+    {
+      "id": "realism.process.thermometer",
+      "mechanisms": [
+        "realism.infra.thermometer_drift"
+      ],
+      "writes": [
+        "world.reading"
+      ],
+      "reads": [
+        "component.vessel_t",
+        "world.uniform"
+      ],
+      "period": 10000,
+      "phase": "fast",
+      "order": "insertion"
+    },
+    {
+      "id": "realism.process.wear",
+      "mechanisms": [
+        "realism.equip.wear_by_temperature"
+      ],
+      "writes": [
+        "component.condition_control",
+        "component.condition_capability"
+      ],
+      "reads": [
+        "component.vessel_t",
+        "component.condition_control",
+        "component.condition_capability"
+      ],
       "period": 60000,
+      "phase": "fast",
+      "order": "insertion"
+    },
+    {
+      "id": "realism.atmosphere.grid",
+      "mechanisms": [
+        "realism.gas.grid_transport"
+      ],
+      "writes": [
+        "air.cell_masses",
+        "air.ppm_per_cell"
+      ],
+      "reads": [
+        "air.cell_masses",
+        "air.pressure",
+        "air.room_t"
+      ],
+      "period": 1000,
+      "phase": "fast",
+      "order": "insertion"
+    },
+    {
+      "id": "realism.atmosphere.sources",
+      "mechanisms": [
+        "realism.gas.sources_sinks"
+      ],
+      "writes": [
+        "air.gas_mass_change"
+      ],
+      "reads": [
+        "air.gas_masses",
+        "air.pressure",
+        "air.room_t"
+      ],
+      "period": 1000,
+      "phase": "fast",
+      "order": "insertion"
+    },
+    {
+      "id": "realism.reactions.reaction",
+      "mechanisms": [
+        "realism.chem.reaction_extent",
+        "realism.chem.reaction_validation",
+        "realism.chem.heat_per_kg"
+      ],
+      "writes": [
+        "component.extent",
+        "component.product_masses",
+        "component.gas_to_receiver",
+        "component.pass_throw"
+      ],
+      "reads": [
+        "component.vessel_t",
+        "air.gas_masses",
+        "component.heat"
+      ],
+      "period": 1000,
       "phase": "fast",
       "order": "insertion"
     }
   ],
-  "ports": [],
+  "ports": [
+    {
+      "mechanism": "realism.atmos.barometric_pressure",
+      "quantity": "air.pressure",
+      "kind": "quantity",
+      "unit": "Pa",
+      "direction": "output"
+    },
+    {
+      "mechanism": "realism.infra.crisis_record",
+      "quantity": "body.crisis",
+      "kind": "record",
+      "unit": null,
+      "direction": "output"
+    },
+    {
+      "mechanism": "realism.infra.world_conservation",
+      "quantity": "component.heat",
+      "kind": "quantity",
+      "unit": "J",
+      "direction": "output"
+    }
+  ],
   "streams": []
 }
