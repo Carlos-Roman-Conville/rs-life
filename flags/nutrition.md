@@ -1,5 +1,6 @@
 ## nutrition (2521)
 
+- (3014) CG-13: confirmed energy enters the store as absorbed (eatMeal passes kept energy to ingest; unabsorbed energy is a traced transfer to waste); verified by "energy enters absorbed (CG-13)". Open: physiology.ts's doc line calls intake_kcal "eaten" (fix after 2724 releases physiology.ts); the unabsorbed energy has no quantity until CG-6 (excreta).
 - (2723) validation failed: model onset day 53 vs reference 28 days (https://en.wikipedia.org/wiki/Scurvy); source is secondary; open for the Reality keeper (REAL-30).
 - (2723) report: nutrition vitamin C pool -> anatomy collagen integrity -> medicine healing/scurvy diagnosis is now one pathway. The pool at first signs satisfies the supplied less-than-300-mg upper bound, but depletion timing does not agree with the Iowa reference's "about four weeks". The reference supplies neither a time tolerance nor a measured initial pool; the model starts at its existing full reserve. No model number or tolerance was changed. Accuracy is limited to pool-bound agreement; initial reserves and the depletion law remain open for REAL-30, while collagen recovery and the x3 healing magnitude remain unsupported by these reference rows.
 

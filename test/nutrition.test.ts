@@ -144,6 +144,33 @@ describe("eating", () => {
   });
 });
 
+describe("energy enters absorbed (CG-13)", () => {
+  it("passes kept kcal to intake and traces unabsorbed energy to waste", () => {
+    const x = build();
+    x.body.props.flux = 1;                                               // flux cuts every nutrient including energy below 1
+    const items = [{ food: "salt-beef", kg: 0.3 }, { food: "ships-biscuit", kg: 0.4 }];
+    const list = items.map(i => ({ food: foodRow(i.food), kg: i.kg }));
+    const sum = (n: string) => list.reduce((a, i) => a + foodContent(i.food, n, i.kg), 0);
+    const meal = { vitCMg: sum("vit_c"), fatG: sum("fat"), flux: true, chronicFlux: false, rum: false };
+    let eatenKcal = 0, keptKcal = 0;
+    for (const { food, kg } of list) {
+      const e = food.kcalPerKg * kg;
+      eatenKcal += e;
+      keptKcal += e * absorbedFraction("energy", food, meal);
+    }
+    expect(absorbedFraction("energy", list[0]!.food, meal)).toBeLessThan(1);
+    expect(absorbedFraction("energy", list[1]!.food, meal)).toBeLessThan(1);
+    const intake0 = x.body.props.intake_kcal ?? 0;
+    eatMeal(x.w, "body", items);
+    expect(x.body.props.intake_kcal! - intake0).toBeCloseTo(keptKcal, 9);
+    const wasteJ = x.w.trace.transfers.filter(f => f.from === "food" && f.to === "waste" && f.quantity === "energy:chemical" && f.note === "unabsorbed")
+      .reduce((a, f) => a + f.amount, 0);
+    expect(wasteJ).toBeCloseTo((eatenKcal - keptKcal) * KCAL_J, 9);
+    expect(keptKcal + wasteJ / KCAL_J).toBeCloseTo(eatenKcal, 9);
+    expect(x.w.trace.into("body", "energy:chemical")).toBeCloseTo(keptKcal * KCAL_J, 9);
+  });
+});
+
 describe("deficiency", () => {
   it("vitamin C: zero intake from the full pool reaches stage 1 on the docs' scurvy day", () => {
     const x = build();
