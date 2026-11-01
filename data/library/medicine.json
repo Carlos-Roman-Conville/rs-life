@@ -109,7 +109,7 @@
     "title": "Immunity and resistance",
     "kind": "science",
     "conf": "high",
-    "source": "Lifelong immunity after yellow fever and smallpox; partial after falciparum malaria; none after dysentery or influenza strains; Constitution as the hidden resistance stat is Rex's (STATS.md).",
+    "source": "Lifelong immunity after yellow fever and smallpox; partial after falciparum malaria; none after dysentery or influenza strains.",
     "columns": ["id", "Disease", "After surviving", "Inoculation", "Mark", "source"],
     "rows": [
       ["medicine.immunity.yellow-fever", "Yellow fever", "lifelong immunity", "none in the period", "proposed", "open"],

@@ -6,7 +6,7 @@
  * support is listed in FLAGS.md and left disabled here (a `null` rate switches that path off).
  *
  * Sources of the formulas (all in the library's rows; the host dashboard's respiratory calculator, `resp` in
- * body/dashboard.html, and world/ATMOSPHERE.md section 2 carry them in code and prose):
+ * body/dashboard.html, and gears/altitude-inspired-oxygen.md carry them in code and prose):
  * - pressure: the barometric formula in physics.ts (`pressureAtAltitude`, ATM-STD); inspired PO2 = FiO2 (P - 47 mmHg).
  * - alveolar gas equation (ATM-ALV): PAO2 = FiO2 (P - 47) - PaCO2 / 0.8; arterial PO2 = PAO2 less the A-a gradient.
  * - saturation, Severinghaus: SaO2 = 1 / (1 + 23400 / (PaO2^3 + 150 PaO2)) (`circulation.blood_gas`).

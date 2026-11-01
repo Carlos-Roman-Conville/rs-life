@@ -18,3 +18,4 @@
 - (2744) NOTE: the crisis_floors table is kind model, conf low; its floors are evidence level 5 (hypothetical, PLATFORM.md section 4), as gears/anatomy-crisis-floors.md records. Level is an evidence level, not a table kind.
 
 - (2727) Species gas tolerances remain data in anatomy.respiratory.gas-tolerances-species; medicine reads them and computes one combined condition. No anatomical gas diagnosis is applied.
+- (2768) game content: anatomy.species: the story's states of being, the merfolk's form and the fish-person's gills belong to the pirate adapter; the engine's species rows are data records of the shared mechanisms.

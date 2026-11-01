@@ -4,7 +4,7 @@
     "title": "The settlement record: cohorts the aggregate model keeps",
     "kind": "model",
     "conf": "medium",
-    "source": "A compact age-sex-role structure, updated daily for a visited town (the overnight tick) and in a batch for a distant one (the days elapsed). ChatGPT's three simulation levels (unvisited aggregate; discovered named characters tracked; active full detail) recorded in COMBAT.md 4e, proposed; kept.",
+    "source": "A compact age-sex-role structure, updated daily for a visited town (the overnight tick) and in a batch for a distant one (the days elapsed). ChatGPT's three simulation levels (unvisited aggregate; discovered named characters tracked; active full detail) recorded in gears/population-simulation-levels.md, proposed; kept.",
     "columns": ["id", "Field", "Type", "What it holds", "Mark", "source"],
     "rows": [
       ["population.cohorts.children", "children", "count", "under 15", "proposed", "open"],

@@ -4,7 +4,7 @@
     "title": "The muscle groups the sim tracks (left/right where the body has two)",
     "kind": "science",
     "conf": "high",
-    "source": "Anatomy is textbook (Gray's). The split by head (deltoid front/middle/rear; chest clavicular/sternocostal; and so on) is Rex's rule that groups split the way real muscles split (COMBAT.md 4b). Which groups count is proposed (ChatGPT's 25 to 40 functional model, extended). MUS-ANAT",
+    "source": "Anatomy is textbook (Gray's). The split by head (deltoid front/middle/rear; chest clavicular/sternocostal; and so on) is Rex's rule that groups split the way real muscles split (gears/muscular-state-model.md). Which groups count is proposed (ChatGPT's 25 to 40 functional model, extended). MUS-ANAT",
     "columns": ["id", "Group", "Region", "Sides", "Main action", "Mark", "source"],
     "rows": [
       ["delt_front", "Deltoid, anterior head", "shoulder", "L/R", "raising the arm forward, pushing", "rex (split), proposed (set)", "open"],
@@ -44,7 +44,7 @@
     "title": "What each group carries (three values plus the stimulus store)",
     "kind": "model",
     "conf": "medium",
-    "source": "ChatGPT's development / fatigue / condition triple with accumulated training stimulus (COMBAT.md 4b, proposed, outside AI), kept; units and ranges the keeper's.",
+    "source": "ChatGPT's development / fatigue / condition triple with accumulated training stimulus (gears/muscular-state-model.md, proposed, outside AI), kept; units and ranges the keeper's.",
     "columns": ["id", "Value", "Range", "Unit", "Changes by", "Reads", "Mark", "source"],
     "rows": [
       ["muscular.values.contractile-was-development", "contractile (was 'development')", "0 to 100 (genetic max per group, inherited from the limb's hidden max)", "index: 50 is an ordinary sailor", "the tension stimulus after rest and food (hypertrophy: more contractile protein); disuse decay", "force potential, muscle mass, limb Strength (computed)", "rex (the split, 2026-10-29); proposed (ranges)", "open"],
@@ -88,7 +88,7 @@
     "title": "Action activation profiles (% of the group's maximum; illustrative)",
     "kind": "model",
     "conf": "low",
-    "source": "Shape from EMG literature where it exists (inverted row and suspension rows: lats, mid trapezius, biceps, rear deltoid at 50 to 60% MVIC; climbing postures: middle and lower trapezius 35 to 60%; MUS-EMG). Hauling rope is ChatGPT's illustrative profile (COMBAT.md 4b). Every other profile is the keeper's estimate and a data task to refine. The columns are the groups by id; a blank is 0.",
+    "source": "Shape from EMG literature where it exists (inverted row and suspension rows: lats, mid trapezius, biceps, rear deltoid at 50 to 60% MVIC; climbing postures: middle and lower trapezius 35 to 60%; MUS-EMG). Hauling rope is ChatGPT's illustrative profile (gears/muscular-state-model.md). Every other profile is the keeper's estimate and a data task to refine. The columns are the groups by id; a blank is 0.",
     "columns": ["id", "Intensity (MET)", "lats", "trap_mid", "trap_lower", "trap_upper", "rhomboids", "delt_front", "delt_mid", "delt_rear", "rotator_cuff", "pec_clav", "pec_stern", "biceps", "brachialis", "triceps", "forearm_flex", "forearm_ext", "hand", "erectors", "abs", "obliques", "deep_core", "glute_max", "glute_med", "hip_flex", "adductors", "quads", "hamstrings", "calves", "tibialis", "neck", "Mark", "source"],
     "rows": [
       ["muscular.activations.hauling-a-line-hand-over-hand", 7, 90, 70, 50, 30, 60, 10, 20, 45, 30, 10, 10, 70, 60, 10, 85, 30, 40, 55, 30, 30, 40, 35, 20, 10, 10, 35, 30, 25, 10, 20, "proposed (outside AI)", "open"],
@@ -210,7 +210,7 @@
     "title": "How a limb's Strength is computed from its groups (proposed answer to the replace-or-compute question)",
     "kind": "model",
     "conf": "low",
-    "source": "Rex left open whether muscle replaces per-limb Strength or Strength is computed from it (COMBAT.md 4b; ChatGPT: replaces). This table is the 'computed' reading, offered because it keeps STATS.md's Strength number alive for every system that already reads it while the muscles underneath make it per limb and trainable by what you do. Weights are the keeper's.",
+    "source": "Rex left open whether muscle replaces per-limb Strength or Strength is computed from it (gears/muscular-state-model.md; ChatGPT: replaces). This table is the 'computed' reading, offered because it keeps the per-limb Strength number alive for every system that already reads it while the muscles underneath make it per limb and trainable by what you do. Weights are the keeper's.",
     "columns": ["id", "Formula (development x (1 - fatigue) x condition, per group)", "Weights", "Mark", "source"],
     "rows": [
       ["muscular.limb_strength.right-arm-strength", "weighted mean of the right arm's groups' contractile x mean recruitment of the arm's patterns, scaled to the STATS 1 to 20 range (the character-sheet number); the force in a given action is the action's own: contractile x the pattern's recruitment x (1 - fatigue) x condition per required group, the weakest limiting", "grip 0.2, lats 0.15, biceps+brachialis 0.15, triceps 0.15, deltoids 0.15, pecs 0.1, trap_mid+rhomboids 0.1", "proposed", "open"],

@@ -74,7 +74,7 @@
     "title": "The species profile: what changes for a horse, a dog, a fish-person (the reusable engine)",
     "kind": "model",
     "conf": "medium",
-    "source": "ChatGPT's point (outside AI), kept: the mechanisms (circulation, respiration, metabolism, repair, signalling) are shared; the anatomy and its parameters vary by species. The profile is a data record, not code. Rex's states of being (BODY.md 6) are species profiles of this kind; the merfolk's form and the fish-person's gills are rows here when the story keeper writes them.",
+    "source": "ChatGPT's point (outside AI), kept: the mechanisms (circulation, respiration, metabolism, repair, signalling) are shared; the anatomy and its parameters vary by species. The profile is a data record, not code. Rex's states of being are species profiles of this kind; the merfolk's form and the fish-person's gills are rows here when the story keeper writes them.",
     "columns": ["id", "Profile field", "Human default", "A horse (example)", "Mark", "source"],
     "rows": [
       ["anatomy.species.organs-present", "organs present", "the list above", "the same, plus a larger gut (hindgut fermenter); no gall bladder", "rex (the profile shape, 2026-10-29); proposed (the example values)", "open"],
@@ -96,7 +96,7 @@
     "title": "Organ crisis floors (2633)",
     "kind": "model",
     "conf": "low",
-    "source": "ANATOMY.md section 3a (game design, 2026-10-29), not independent clinical evidence. Level 5; specification and validation gap: gears/anatomy-crisis-floors.md.",
+    "source": "Game design of 2026-10-29 as stated in gears/anatomy-crisis-floors.md, not independent clinical evidence. Level 5; specification and validation gap recorded there.",
     "columns": ["id", "Organ", "Floor", "Level", "Source", "source"],
     "rows": [
       ["anatomy.crisis_floors.brain", "brain", 0.2, 5, "ANATOMY.md section 3a", "open"],

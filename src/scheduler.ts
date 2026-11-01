@@ -1,6 +1,6 @@
 /**
  * Service 4: the scheduler. Processes are grouped by rate: fast (every step, seconds) and slow (every N steps). Within a
- * step the order is fixed and declared, so each process reads finished inputs (BODY.md section 4's rule).
+ * step the order is fixed and declared, so each process reads finished inputs (gears/process-order.md).
  */
 import type { World } from "./world.ts";
 

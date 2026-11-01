@@ -43,7 +43,7 @@ export interface Port {
   direction: "in" | "out" | "both";
 }
 
-/** Condition as three independent properties (SCIENTIFIC_EQUIPMENT.md section 4). 1 = new. */
+/** Condition as three independent properties (gears/equipment-condition.md). 1 = new. */
 export interface Condition { capability: number; control: number; accuracy: number }
 
 export interface Contents { substance: string; phase: Phase; mass: number } // kg

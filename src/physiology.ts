@@ -1,7 +1,7 @@
 /**
  * Human energy, heat, sleep and water as one engine process on a `body` component (kind "body", `props`). Every table
  * number comes from `data/library/physiology.json` through library.ts; the formulas are Mifflin-St Jeor (physiology.ts,
- * PHY-MSJ), the MET cost (physics.ts metabolicHeat, PHY-MET) and the drift rule of PHYSIOLOGY.md section 4. What the docs
+ * PHY-MSJ), the MET cost (physics.ts metabolicHeat, PHY-MET) and the drift rule of gears/core-temperature-drift.md. What the docs
  * ask for and the library cannot support is listed in FLAGS.md and left disabled here.
  *
  * Inputs on `body.props` (all optional): height_cm, age_y, male (1 or 0) for the resting rate; acclimatisation (0 to 1,
@@ -396,7 +396,7 @@ export function physiologyProcess(body: string, room: string, o: PhysiologyOptio
 
 
     const act = activityAt(hour), met = act.met;
-    // energy: the MET cost, corrected to this body's resting rate when it has one (PHYSIOLOGY.md section 4); heat is M - W
+    // energy: the MET cost, corrected to this body's resting rate when it has one (gears/core-temperature-drift.md); heat is M - W
     const mWatt = metabolicRateW(met, b, rmr);
     const workWatt = Math.min(p.work_w ?? 0, mWatt);
     const heatWatt = mWatt - workWatt;

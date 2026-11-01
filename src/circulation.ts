@@ -244,7 +244,7 @@ export function circulationProcess(body: string, options: CirculationOptions = {
     // The row that says dying is unsurvivable untreated: a loss at that class opens a crisis, with the row as its source.
     for (const r of libraryTable("circulation", "bleeding")) {
       const dying = /\bdying\b/.test(String(r["Organ consequences (ANATOMY)"]));
-      if (dying) trackCrisis(w, body, String(r.id), r.id === effects.row.id, { source: `${r.id}: ${r["Organ consequences (ANATOMY)"]}; death risk per hour untreated ${r["Death risk per hour at this loss, untreated (placeholder)"]} (placeholder, per hour so not the case risk); ANATOMY.md section 3a`,
+      if (dying) trackCrisis(w, body, String(r.id), r.id === effects.row.id, { source: `${r.id}: ${r["Organ consequences (ANATOMY)"]}; death risk per hour untreated ${r["Death risk per hour at this loss, untreated (placeholder)"]} (placeholder, per hour so not the case risk); gears/anatomy-crisis-floors.md`,
         organ: String(r.id) });
     }
     for (const [organ, value] of Object.entries(effects.perfusion)) out[`circulation.quantities.perfusion-per-organ.${organ}`] = value;

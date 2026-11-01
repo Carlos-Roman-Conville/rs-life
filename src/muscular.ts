@@ -188,7 +188,7 @@ function banisterPerformance(state: { fitness: number; fatigue: number }, base: 
   return base + banisterValue("k1-fitness-gain") * state.fitness - banisterValue("k2-fatigue-weight") * state.fatigue;
 }
 
-/** Proposed, uncalibrated PHYSIOLOGY.md section 2 clamp; sole training input to circulation.
+/** Proposed, uncalibrated clamp (gears/aerobic-training-clamp.md); sole training input to circulation.
  * Normalisation rows reference the existing k rows, never a second fitted constant set. */
 export function trainingFactor(state: { fitness: number; fatigue: number }): number {
   for (const v of [state.fitness, state.fatigue]) bounded(v, 0, Infinity, "Banister state");

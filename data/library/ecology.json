@@ -4,7 +4,7 @@
     "title": "Depletion and regeneration rules",
     "kind": "model",
     "conf": "medium",
-    "source": "Logistic recovery is the Schaefer model's own; the catch-per-effort fall is the standard signal (CPUE proportional to B); the 'tragedy' row is the Cayman history. The fishing minigame's catch (FISHING.md stage 1, reading the water) is the visible face: fewer silhouettes.",
+    "source": "Logistic recovery is the Schaefer model's own; the catch-per-effort fall is the standard signal (CPUE proportional to B); the 'tragedy' row is the Cayman history.",
     "columns": ["id", "Rule", "Formula or statement", "Mark", "source"],
     "rows": [
       ["ecology.depletion_rules.daily-catch-per-fisher", "Daily catch per fisher", "catch = q x effort x B / K (q from Fishing skill, FISHING.md stages); the minigame shows B/K as how many silhouettes appear", "proposed", "open"],
