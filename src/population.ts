@@ -256,6 +256,13 @@ export interface LabourSupply {
   productivity(holder: string, role: string): number
 }
 
+/** Section 19 extends the shared section 16 block without changing its declaration. */
+export interface LabourSupply {
+  /** The least wage, in money per filled post-day (as `Post.wage`), a named person asks for a role today; null
+   *  when none is stated. The host answers it from the person's latest `work` intention (`terms.wage_min`). */
+  reservationWage?(person: string, role: string, day: number): number | null
+}
+
 /** Category capacity in person*h; persons is an effective headcount, not a labour unit.
  * Health multiplies living, non-symptomatic residents once. */
 function labourRows(p: Population, hoursPerDay: number): LabourRow[] {
