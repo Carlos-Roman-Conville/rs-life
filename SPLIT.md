@@ -100,8 +100,12 @@ built, because a port needs a built registry row. Quantity ids come from the reg
    modules, library files and tests by a history-keeping move (git subtree or filter-repo); phase 6 mechanics starts
    there. `realism` keeps the Life side and is renamed to Life later (Rex's `rs-life`); until then the backup job mirrors
    `realism` to `rs-life`. Then each package declares its section 4 ports in its
-   own kernel.json (DESIGN section 8.1).
-5. **Hosts.** The pirate web links both packages; its world suite passes against the pair.
+   own kernel.json (DESIGN section 8.1). Dependencies follow Kernel DESIGN section 16 (Rex,
+   2026-10-31): the new reality repo cuts v0.1.0 when the move lands, and Life depends on it as
+   "@rex/reality": "git+file:///E:/backups/reality-sim/git/<reality repo>.git#v0.1.0", never a file: link; both depend on
+   @rex/kernel at a kernel tag. Hosts (the pirate web, History) pin each engine's tag the same way. (2824)
+5. **Hosts.** The pirate web links both packages; its world suite passes against the pair. The pirate web pins realism (and later reality and life) at
+   tags in its own paired units, removing each old folder link with cmd /c rmdir, never a recursive delete.
 6. **Re-audit.** The registry keeper re-audits ownership; the lint check from step 2f runs in both packages.
 
 ## 6. Tests
