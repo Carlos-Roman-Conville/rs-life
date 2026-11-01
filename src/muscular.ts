@@ -75,7 +75,14 @@ export function stepMuscleFatigue(state: Compartments, group: string, effort: nu
   const check = (time: number) => {
     const total = s.resting + s.active + s.fatigued;
     trace?.check(time, `muscle-fraction:${group}`, 1, total, 1e-12);
-    if (Math.abs(total - 1) > 1e-12 || Object.values(s).some(x => x < 0 || x > 1)) throw new Error("muscular: compartment conservation failed");
+    if (!Number.isFinite(total) || Math.abs(total - 1) > 1e-12 || Object.values(s).some(x => x < -1e-12 || x > 1 + 1e-12))
+      throw new Error("muscular: compartment conservation failed");
+    // Repair only roundoff, after checking the uncorrected conservation residual.
+    s.resting = Math.max(0, Math.min(1, s.resting));
+    s.active = Math.max(0, Math.min(1, s.active));
+    s.fatigued = Math.max(0, Math.min(1, s.fatigued));
+    const clampedTotal = s.resting + s.active + s.fatigued;
+    s.resting /= clampedTotal; s.active /= clampedTotal; s.fatigued /= clampedTotal;
   };
   if (seconds === 0) return s;
   if (effort === 0) {

@@ -17,8 +17,6 @@ export const WORK_ACTIVATION: Record<string, string> = {
 };
 /** Work blocks 08-12 and 13-17; the 3CC is read at the end of each. */
 export const BLOCK_END_H = [12, 17] as const;
-/** A muscle this close to fully rested (with no active fibres) is set to exactly rested before the next step. */
-export const REST_SNAP = 1e-9;
 const clockHour = (t: number) => (5 + t / 3600) % 24;
 
 export interface BlockEnd { day: number; hour: number; groups: Record<string, Compartments> }
@@ -41,9 +39,7 @@ export function measure(stepS: number, days: number = FIXTURE.days): Measured {
         for (const muscle of Object.values(sides))
           if (muscle.compartments !== null) {
             const effort = row?.groups[group] ?? 0, c = muscle.compartments;
-            // Rounding guard (see the report): stepMuscleFatigue throws when a long rest leaves resting one ulp over 1.
-            if (effort === 0 && c.active === 0 && c.fatigued < REST_SNAP) muscle.compartments = { resting: 1, active: 0, fatigued: 0 };
-            else muscle.compartments = stepMuscleFatigue(c, group, effort, dt, 1);
+            muscle.compartments = stepMuscleFatigue(c, group, effort, dt, 1);
           }
       const end = world.t + dt, h = clockHour(end);
       if (end % 3600 === 0 && (BLOCK_END_H as readonly number[]).includes(h))

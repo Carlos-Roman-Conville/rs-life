@@ -37,6 +37,26 @@ describe("muscular library and states", () => {
 });
 
 describe("seconds-based three-compartment fatigue", () => {
+  it("conserves compartments through long rest (2832) and rejects corrupted state", () => {
+    const group = "delt_mid";
+    const effort = muscularActivation("muscular.activations.smithing-the-hammer-at-the-anvil").groups[group]!;
+    expect(effort).toBeGreaterThan(0);
+    let s = { ...fresh };
+    for (let t = 0; t < 4 * 3600; t += 60) s = stepMuscleFatigue(s, group, effort, 60, 1)!;
+    expect(s.fatigued).toBeGreaterThan(0);
+    for (let t = 0; t < 12 * 3600; t += 60) {
+      s = stepMuscleFatigue(s, group, 0, 60, 1)!;
+      for (const value of Object.values(s)) {
+        expect(value).toBeGreaterThanOrEqual(0);
+        expect(value).toBeLessThanOrEqual(1);
+      }
+      expect(Math.abs(s.resting + s.active + s.fatigued - 1)).toBeLessThanOrEqual(1e-12);
+    }
+    expect(Math.abs(s.resting - 1)).toBeLessThanOrEqual(1e-12);
+    expect(s.active).toBeLessThanOrEqual(1e-12);
+    expect(s.fatigued).toBeLessThanOrEqual(1e-12);
+    expect(() => stepMuscleFatigue({ ...fresh, resting: 1.001 }, group, 0, 60, 1)).toThrow();
+  });
   it("traces transfers and conserves fibres every second; split steps agree", () => {
     const trace = new Trace();
     const result = stepMuscleFatigue(fresh, "hand", 0.5, 120, 1, trace)!;
