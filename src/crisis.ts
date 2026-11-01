@@ -4,6 +4,7 @@
  * the row that justifies it in `source`, the host decides, and `declareDeath` refuses a body with no crisis in the trace.
  */
 import type { World } from "./world.ts";
+import { Trace, type TraceRecord } from "./trace.ts";
 
 export interface DeathRecord {
   readonly body: string;
@@ -13,7 +14,7 @@ export interface DeathRecord {
   readonly source: string;
 }
 
-export interface Crisis {
+export interface Crisis extends TraceRecord {
   kind: "crisis";
   body: string;
   /** What opened it: a library row id, `disease:<id>`, `treatment:<id>:<disease>`, `exposure:<id>` or an organ id. */
@@ -38,10 +39,33 @@ export interface Crisis {
 
 export interface CrisisDetail { source: string; risk?: number | null; day?: number; organ?: string; function?: number | null; remainingCapacity?: number }
 
+declare module "./trace.ts" {
+  interface Trace {
+    /** @deprecated use allCrises / carryRecords (2777) */
+    readonly crises: Crisis[];
+  }
+}
+
+/** @deprecated use allCrises / carryRecords (2777) */
+Object.defineProperty(Trace.prototype, "crises", { get() { return this.records }, configurable: true });
+
+/** The crisis view of the world's audit records, retaining the original record objects. */
+export const allCrises = (w: World): Crisis[] => w.trace.records.filter((c): c is Crisis => c.kind === "crisis");
+
+/** Add a crisis record without a note; recordCrisis supplies the once-only diagnostic note. */
+export function addCrisis(w: World, c: Crisis): void {
+  w.trace.records.push(c);
+}
+
+/** Carry every audit record by reference when a host renews its world's trace. */
+export function carryRecords(next: World, previous: World): void {
+  next.trace.records.push(...previous.trace.records);
+}
+
 /** Put a crisis record in the world's trace (once) with a note. */
 export function recordCrisis(w: World, c: Crisis): Crisis {
-  if (!w.trace.crises.includes(c)) {
-    w.trace.crises.push(c);
+  if (!allCrises(w).includes(c)) {
+    addCrisis(w, c);
     w.trace.note(c.startedAt, `crisis: ${c.body}/${c.cause}; ${c.source}; outcome belongs to host`, { keep: true }); // (2715)
   }
   return c;
@@ -50,7 +74,7 @@ export function recordCrisis(w: World, c: Crisis): Crisis {
 /** A condition that holds over time: opens a record when it becomes active, keeps its duration and values current while
  * it lasts, and stamps `resolvedAt` when it ends. One open record per body and cause. */
 export function trackCrisis(w: World, body: string, cause: string, active: boolean, d: CrisisDetail): Crisis | undefined {
-  const open = w.trace.crises.find(c => c.body === body && c.cause === cause && c.resolvedAt === undefined && c.resolved === undefined);
+  const open = allCrises(w).find(c => c.body === body && c.cause === cause && c.resolvedAt === undefined && c.resolved === undefined);
   if (open) {
     open.durationSeconds = w.t - open.startedAt;
     if (d.function !== undefined) open.function = d.function;
@@ -65,12 +89,12 @@ export function trackCrisis(w: World, body: string, cause: string, active: boole
 }
 
 /** The crises in the trace that belong to a body. */
-export const crisesOf = (w: World, body: string) => w.trace.crises.filter(c => c.body === body);
+export const crisesOf = (w: World, body: string) => allCrises(w).filter(c => c.body === body);
 
 /** Deaths remain in the trace's crises, including after trace compaction. */
-export const deathsOf = (w: World): DeathRecord[] => w.trace.crises.flatMap(c => c.death ? [c.death] : []);
+export const deathsOf = (w: World): DeathRecord[] => allCrises(w).flatMap(c => c.death ? [c.death] : []);
 export const causeOfDeath = (w: World, body: string): DeathRecord | undefined =>
-  w.trace.crises.find(c => c.death?.body === body)?.death;
+  allCrises(w).find(c => c.death?.body === body)?.death;
 
 /** Supply population.epidemic?.disease for the outbreak being compared (retain its id
  * for a retrospective comparison). Without that context a disease is not an epidemic.

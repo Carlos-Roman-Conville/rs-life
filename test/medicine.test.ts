@@ -7,7 +7,7 @@ import { bodyOutputs } from "../src/physiology.ts";
 import { initialiseCirculation } from "../src/circulation.ts";
 import { libraryRow, libraryTable } from "../src/library.ts";
 import * as library from "../src/library.ts";
-import { causeOfDeath, declareDeath } from "../src/crisis.ts";
+import { allCrises, causeOfDeath, declareDeath } from "../src/crisis.ts";
 import validation from "../data/library/validation.json";
 import { anatomyProcess, assembleBody } from "../src/anatomy.ts";
 import { eat, nutritionProcess, poolLevel, stockPools } from "../src/nutrition.ts";
@@ -647,7 +647,7 @@ describe("scurvy consequences (2787)", () => {
     for (let day = 0; day < 3; day++) x.step();
     expect(wound.healed).toBe(true); expect(wound.reopened).toBe(0);
     expect(medicineOutputs(x.s)["medicine.signs.teeth_lost"]).toBe(0);
-    expect(x.w.trace.crises.filter(c => c.cause === `${collagenId}:exertion`)).toEqual([]);
+    expect(allCrises(x.w).filter(c => c.cause === `${collagenId}:exertion`)).toEqual([]);
   });
 
   it("test-only thresholds reopen healed wounds once per crossing and preserve tooth loss after recovery", () => {
@@ -692,7 +692,7 @@ describe("scurvy consequences (2787)", () => {
       const c = x.a.crises[0];
       expect(c).toMatchObject({ cause: `${collagenId}:exertion`, risk: null });
       expect(c.source).toContain(`${prefix}sudden-death-on-exertion-at-integrity`);
-      expect(x.w.trace.crises).toContain(c);
+      expect(allCrises(x.w)).toContain(c);
       x.anatomy.step(x.w, 0); expect(x.a.crises).toHaveLength(1);
       factors.exerting = false; x.anatomy.step(x.w, 0);
       expect(c.resolvedAt).toBe(x.w.t);

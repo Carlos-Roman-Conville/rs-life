@@ -7,7 +7,7 @@ import { defaultRegistry, type Component } from '../src/registry.ts';
 import { bodyArea, bodyOutputs, metOf, physiologyProcess } from '../src/physiology.ts';
 import { wbgtBom } from '../src/environment.ts';
 import type { Transfer } from '../src/trace.ts';
-import { crisesOf, declareDeath } from '../src/crisis.ts';
+import { allCrises, crisesOf, declareDeath } from '../src/crisis.ts';
 
 const MAN = { height_cm: 175, age_y: 30, male: 1 };
 const water = (ts: readonly Transfer[], pred: (t: Transfer) => boolean) =>
@@ -102,7 +102,7 @@ describe('hydration across the checkpoint-1 week (ISO 7730 sweat, breath and ski
     }
     expect([...reached.keys()]).toEqual(stops.map(r => r.id)); // the 6 to 10 crisis opened first, then the over-10
     expect(bodyOutputs(body).work_capacity_hydration).toBe(0);
-    expect(w.trace.crises).toHaveLength(2);
+    expect(allCrises(w)).toHaveLength(2);
     // a host that decides the body died must find the crisis in the trace; without one the engine refuses
     expect(() => declareDeath(new World(defaultRegistry()), 'body', 'x')).toThrow();
     declareDeath(w, 'body', 'physiology.hydration.over-10');

@@ -8,7 +8,7 @@ import { World } from '../src/world.ts';
 import { defaultRegistry } from '../src/registry.ts';
 import { bodyOutputs } from '../src/physiology.ts';
 import { createMedicine, healingMultiplier, inflictWound, medicineProcess, treat } from '../src/medicine.ts';
-import { crisesOf, declareDeath } from '../src/crisis.ts';
+import { allCrises, crisesOf, declareDeath } from '../src/crisis.ts';
 import { Scheduler } from '../src/scheduler.ts';
 import { rng } from '../src/process.ts';
 
@@ -129,7 +129,7 @@ describe('checkpoint 2: supported wound integration; missing kinetics explicitly
     expect(crises.map(c => c.cause)).toEqual([iv.id]);
     expect(crises[0]).toMatchObject({ kind: 'crisis', body: 'body', organ: iv.id });
     expect(crises[0].source).toContain(String(iv.id));
-    expect(w.trace.crises).toEqual(crises);
+    expect(allCrises(w)).toEqual(crises);
     expect(assembly.crises).toContain(crises[0]); // the assembly lists the same record
     declareDeath(w, 'body', String(iv.id)); // the host names the crisis it resolves
     expect(body.props.dead).toBe(1);

@@ -18,7 +18,7 @@ export function snapshotWorld(world: World, scheduler?: Scheduler) {
       transfers: world.trace.transfers,
       checks: world.trace.checks,
       notes: world.trace.notes,
-      crises: world.trace.crises,
+      records: world.trace.records,
       // Preserve the original checkpoint shape when nothing has been folded.
       ...(world.trace.checkSummaries.length ? { checkSummaries: world.trace.checkSummaries } : {}),
       ...(world.trace.noteSummaries.length ? { noteSummaries: world.trace.noteSummaries } : {}),

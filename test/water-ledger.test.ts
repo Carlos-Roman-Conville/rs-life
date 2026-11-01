@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import ts from 'typescript';
 import validation from '../data/library/validation.json';
 import * as library from '../src/library.ts';
+import { allCrises } from '../src/crisis.ts';
 import { World } from '../src/world.ts';
 import { defaultRegistry, type Component } from '../src/registry.ts';
 import { addBodyWater, bodyOutputs, ingest, physiologyProcess, totalBodyWaterKg } from '../src/physiology.ts';
@@ -290,7 +291,7 @@ describe('one body water ledger (2623)', () => {
       circulation.step(w, dt);
       w.t += dt;
     }
-    const crisis = w.trace.crises.find(c => c.cause === 'circulation.bleeding.iv')!;
+    const crisis = allCrises(w).find(c => c.cause === 'circulation.bleeding.iv')!;
     expect(crisis).toBeDefined();
     expect(crisis.startedAt + dt - reachS).toBeGreaterThanOrEqual(0);
     expect(crisis.startedAt + dt - reachS).toBeLessThanOrEqual(dt);

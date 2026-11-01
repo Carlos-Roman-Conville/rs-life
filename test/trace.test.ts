@@ -5,6 +5,26 @@ import { defaultRegistry } from "../src/registry.ts";
 import { snapshotWorld } from "../src/snapshot.ts";
 
 describe("trace compaction", () => {
+  it("preserves arbitrary audit records verbatim through repeated compaction (2777)", () => {
+    const trace = new Trace();
+    const records = [
+      { kind: "inspection", t: 0, details: { measurements: [1, 2], accepted: true } },
+      { kind: "host-event", payload: null },
+    ];
+    const saved = structuredClone(records);
+    trace.records.push(...records);
+    trace.record({ t: 0, amount: 1, process: "fixture", quantity: "q", from: "a", to: "b" });
+    trace.check(0, "q", 1, 1, 0);
+    trace.note(0, "status: ready");
+    trace.compact(1);
+    trace.compact(Infinity);
+    expect(trace.records).toEqual(saved);
+    for (const [i, record] of records.entries()) expect(trace.records[i]).toBe(record);
+    expect(trace.transfers).toEqual([]);
+    expect(trace.checks).toEqual([]);
+    expect(trace.notes).toEqual([]);
+  });
+
   it("preserves low bits through cancellation, retained tails, queries and compaction", () => {
     for (const compact of [false, true]) {
       const trace = new Trace();
@@ -60,13 +80,13 @@ describe("trace compaction", () => {
     trace.note(0, "deficiency vitamin stage 1");
     for (const text of ["crisis: a/fixture", "DEATH: a", "a died", "a is dead", "multiple crises"]) trace.note(0, text, { keep: true });
     trace.note(1, "anatomy: at horizon");
-    trace.crises.push({ kind: "crisis", body: "a", cause: "fixture", source: "test", startedAt: 0, durationSeconds: 0, risk: null });
-    const failed = structuredClone(trace.failed()), crises = structuredClone(trace.crises);
+    trace.records.push({ kind: "crisis", body: "a", cause: "fixture", source: "test", startedAt: 0, durationSeconds: 0, risk: null });
+    const failed = structuredClone(trace.failed()), crises = structuredClone(trace.records);
     const retainedNotes = trace.notes.filter(n => !/^(anatomy|deficiency)/.test(n.text) || n.t === 1);
     trace.compact(1);
     expect(trace.checks).toEqual(failed);
     expect(trace.failed()).toEqual(failed);
-    expect(trace.crises).toEqual(crises);
+    expect(trace.records).toEqual(crises);
     expect(trace.notes).toEqual(retainedNotes);
     expect(trace.checkSummaries).toEqual([{ quantity: "q", count: 1, maxAbsError: 0, maxErrorAt: 0 }]);
     expect(trace.noteSummaries).toEqual([{ kind: "anatomy", count: 2 }, { kind: "deficiency", count: 1 }]);

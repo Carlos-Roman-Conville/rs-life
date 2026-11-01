@@ -26,8 +26,10 @@ describe("comparison snapshots", () => {
       w.trace.record({ t: w.t, process: "drain", quantity: "mass:water", from: tank.id, to: "outside", amount: dt });
       w.trace.note(w.t, "drained");
     } });
-    world.trace.crises.push({ kind: "crisis", body: tank.id, cause: "fixture", source: "test",
+    world.trace.records.push({ kind: "crisis", body: tank.id, cause: "fixture", source: "test",
       startedAt: 0, durationSeconds: 0, risk: null });
+    const inspection = { kind: "inspection", details: { accepted: true } };
+    world.trace.records.push(inspection);
     scheduler.stepOnce(world, 1);
 
     const snapshot = snapshotWorld(world, scheduler), saved = canonical(snapshot);
@@ -42,7 +44,7 @@ describe("comparison snapshots", () => {
     expect(snapshot.elements.every(c => c.cursor === 1)).toBe(true);
     expect(snapshot.elements.find(c => c.element === "H")!.net).toBeLessThan(0);
     expect(snapshot.trace).toEqual({ transfers: world.trace.transfers, checks: world.trace.checks,
-      notes: world.trace.notes, crises: world.trace.crises });
+      notes: world.trace.notes, records: world.trace.records });
     expect(world.trace.failed()).toEqual([]);
     expect(canonical(JSON.parse(JSON.stringify(snapshot)))).toBe(saved);
 
@@ -53,7 +55,8 @@ describe("comparison snapshots", () => {
     tank.condition.capability = 0.5;
     world.graph.edges[0].props.capacity = 2;
     world.env.outsideC = 25;
-    world.trace.crises[0].durationSeconds = 1;
+    world.trace.records[0].durationSeconds = 1;
+    inspection.details.accepted = false;
     expect(canonical(snapshot)).toBe(saved);
     expect(canonical(snapshotWorld(world, scheduler))).not.toBe(saved);
 

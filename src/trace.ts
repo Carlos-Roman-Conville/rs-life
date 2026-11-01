@@ -3,8 +3,7 @@
  * every step checks conservation of each tracked quantity against the recorded flows, so an experiment can be read back
  * to see why it failed.
  */
-import type { Crisis } from "./crisis.ts";
-
+export interface TraceRecord { kind: string; [field: string]: unknown }
 export interface Transfer { t: number; process: string; quantity: string; from: string; to: string; amount: number; note?: string; chemicalChange?: boolean }
 
 export interface Check { t: number; quantity: string; expected: number; actual: number; tolerance: number; ok: boolean }
@@ -25,8 +24,8 @@ export class Trace {
   /** `keep` (2715): compaction never folds a kept note; a snapshot without it reads as not kept. */
   notes: { t: number; text: string; keep?: boolean }[] = [];
   noteSummaries: NoteSummary[] = [];
-  /** Every crisis record opened on any body (crisis.ts): the trace is where a death must find its crisis. */
-  crises: Crisis[] = [];
+  /** Audit records owned by consumers; compaction preserves every record verbatim. */
+  records: TraceRecord[] = [];
   record(x: Transfer) { this.transfers.push(x); }
   note(t: number, text: string, opts?: { keep?: boolean }) { this.notes.push(opts?.keep ? { t, text, keep: true } : { t, text }); } // (2715)
   check(t: number, quantity: string, expected: number, actual: number, tolerance: number) {
@@ -41,7 +40,7 @@ export class Trace {
   /** Drop the chronological prefix strictly before horizonT, preserving all-time into/outOf sums.
    * World-owned traces require those transfers to have passed afterStep first. Other consumers must
    * subtract the returned transfer count from their own cursors. Old passing checks and ordinary notes
-   * become summaries; failures, their diagnostic notes, crisis/death notes and all crises stay verbatim.
+   * become summaries; failures, kept notes and all records stay verbatim.
    */
   compact(horizonT: number): number {
     let count = 0;

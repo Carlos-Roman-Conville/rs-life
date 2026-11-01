@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { World } from "../src/world.ts";
 import { defaultRegistry } from "../src/registry.ts";
-import { causeOfDeath, crisesOf, deathCategory, deathsOf, declareDeath, trackCrisis } from "../src/crisis.ts";
+import { allCrises, causeOfDeath, crisesOf, deathCategory, deathsOf, declareDeath, trackCrisis } from "../src/crisis.ts";
 import { advanceDays, airConditions, createMedicine, diseaseCourse, expose, flushMedicineCrises,
   medicineProcess, resolveCrisis, treat } from "../src/medicine.ts";
 import { createPopulation, startEpidemic, tick } from "../src/population.ts";
@@ -153,17 +153,17 @@ describe("medicine and starvation reach the trace (2633)", () => {
     const c = s.crises[0];
     expect(c.startedAt).toBe(51 * DAY);
     expect(c.day).toBe(1);
-    expect(w.trace.crises).toEqual([c]);
-    expect(w.trace.crises[0]).toBe(c);
+    expect(allCrises(w)).toEqual([c]);
+    expect(allCrises(w)[0]).toBe(c);
     w.t += DAY;
     flushMedicineCrises(w, s);
     expect(c.startedAt).toBe(51 * DAY);
-    expect(w.trace.crises).toHaveLength(1);
+    expect(allCrises(w)).toHaveLength(1);
     resolveCrisis(s, c, "survived");
-    expect(w.trace.crises[0].resolved).toBe("survived");
+    expect(allCrises(w)[0].resolved).toBe("survived");
     airConditions(s, { sao2: 0.5 });
     flushMedicineCrises(w, s);
-    expect(w.trace.crises).toHaveLength(2);
+    expect(allCrises(w)).toHaveLength(2);
   });
 
   it("can first flush after independent advanceDays when world and medicine clocks correspond", () => {
@@ -189,7 +189,7 @@ describe("medicine and starvation reach the trace (2633)", () => {
     expect(s.day).toBe(3);
     expect(s.elapsedSeconds).toBe(3.5 * DAY);
     expect(s.crises[0].startedAt).toBe(21 * DAY);
-    expect(w.trace.crises).toHaveLength(1);
+    expect(allCrises(w)).toHaveLength(1);
     process.step(w, DAY / 2);
     expect(s.day).toBe(4);
     expect(s.elapsedSeconds).toBe(4 * DAY);
@@ -202,11 +202,11 @@ describe("medicine and starvation reach the trace (2633)", () => {
     airConditions(s, { sao2: 0.5, driveFailing: true });
     flushMedicineCrises(w, s);
     flushMedicineCrises(w, s);
-    expect(w.trace.crises.map(c => c.cause)).toEqual([
+    expect(allCrises(w).map(c => c.cause)).toEqual([
       "treatment:inoculation-variolation:smallpox",
       "exposure:hypoxia-and-asphyxia-suffocation-the-foul-air", "exposure:respiratory-failure-the-end-state",
     ]);
-    expect(w.trace.crises.every(c => c.source.startsWith("medicine."))).toBe(true);
+    expect(allCrises(w).every(c => c.source.startsWith("medicine."))).toBe(true);
   });
 
   it.each(["fat floor", "mass share"])("opens, persists and resolves starvation from %s", trigger => {
