@@ -92,7 +92,7 @@ built, because a port needs a built registry row. Quantity ids come from the reg
    c. split `environment.ts` into `environment.ts` (Reality) and `exposure.ts` (Life); Done (2779).
    d. move `bodyProcess` from `process.ts` to `physiology.ts`;
    e. `trace.ts` keeps generic records; the `Crisis` type and its helpers live in `crisis.ts` only; Done (2777): trace keeps generic records; crisis.ts owns the crisis view.
-   f. a lint check (a test) that no Reality-side module imports a Life-side one.
+   f. a lint check (a test) that no Reality-side module imports a Life-side one. Done (2780); exceptions listed in the test until steps 2a and 2d.
 3. **Process declarations.** `kernel.json` declares one process per mechanism group, so every quantity has one
    declared writer (unit 2765), and the garbled quantity ids are replaced by the registry's clean ones. The section 4
    ports are declared after step 4, one Composer unit in each package's lane, needing the move.
