@@ -12,3 +12,6 @@
 - NOTE: environment day length is a day centred on 12:00 solar time (sunrise 12 - daylight/2); the month's daylight hours and sunburn minutes (the `environment.sun` rows) are the host's and are not in the library file.
 - NOTE: environment wind chill is the North American index (Osczevski and Bluestein 2005), defined for air at or under 10 C and wind at or over 4.8 km/h; outside that `windChillC` is `null` and `felt_c` is the air. The coefficients are the published ones, not library rows. The test compares -10 C at 20 km/h to the chart's -18.
 - NOTE: environment moves no mass or energy (it reads conditions and writes outputs), so there is nothing to trace or conserve; `props.wbgt_c` on the place is the value physiology reads.
+
+- (2779) port: placeOutputs takes wind-chill and cold-water readers from Life (SPLIT section 4)
+- (2779) port: environmentProcess takes the output record accessor and exposure readers from Life (SPLIT section 4)

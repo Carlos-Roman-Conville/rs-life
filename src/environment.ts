@@ -1,7 +1,7 @@
 /**
  * The outdoors as one module: the conditions a host supplies per place and hour (air temperature, humidity, wind, sun, rain; the
  * host owns its climate tables) turned into what bodies and rooms read. Table numbers come from `data/library/environment.json`
- * (`exposure`) and `physiology.json` (`cold_water`) through library.ts; what the docs ask for and the library cannot support is in
+ * (`exposure`) through library.ts; Life supplies felt-temperature and immersion readers; what the docs ask for and the library cannot support is in
  * FLAGS.md and left `null` here. Nothing is moved between components, so there is no mass or energy to trace: the module reads
  * conditions and writes outputs.
  *
@@ -11,8 +11,6 @@
  *   / (237.7 + Ta)). Its stated error against Liljegren's full model was not reachable (FLAGS.md), so `WBGT_ERROR_C` is null. Wind
  *   and sun are not terms of the form; the place's effect on it is the exposure row's "WBGT vs open deck" column.
  * - Diurnal curve: half-cosine interpolation between the day's minimum and maximum, each reached at an hour the host supplies.
- * - Wind chill: the North American index (Osczevski and Bluestein 2005; Environment Canada and the US National Weather Service):
- *   Twc = 13.12 + 0.6215 Ta - 11.37 v^0.16 + 0.3965 Ta v^0.16, v in km/h, defined for Ta at or under 10 C and v at or over 4.8 km/h.
  * - Day length and sunburn time: the host supplies the month's row (daylight hours, minutes to burn untanned); the sun is up for
  *   daylight hours centred on 12:00 solar time.
  *
@@ -24,7 +22,7 @@
 import type { Process } from "./scheduler.ts";
 import type { World } from "./world.ts";
 import { libraryTable, type LibraryRow } from "./library.ts";
-import { bodyOutputs } from "./physiology.ts";
+import type { Component } from "./registry.ts";
 
 // ---------------------------------------------------------------------------------------------------------------- WBGT
 
@@ -100,44 +98,6 @@ export function isDay(hour: number, daylightH: number): boolean {
   return h >= s.rise && h < s.set;
 }
 
-/** Fraction of a sunburn reached after `minutes` in full sun, from the month's minutes to burn untanned (1 or more is burned). */
-export const sunburnFraction = (minutes: number, burnMin: number) => minutes / burnMin;
-
-// ---------------------------------------------------------------------------------------------------------------- cold: wind chill and water
-
-/** Wind chill in C (North American index) from air temperature C and wind m/s; null outside its domain (over 10 C, or under 4.8 km/h). */
-export function windChillC(airC: number, windMS: number): number | null {
-  const v = windMS * 3.6;
-  if (airC > 10 || v < 4.8) return null;
-  const p = Math.pow(v, 0.16);
-  return 13.12 + 0.6215 * airC - 11.37 * p + 0.3965 * airC * p;
-}
-
-export interface Span { lo: number; hi: number }
-
-/** "15 to 30 min", "1 to 3 h", "3 h to indefinite", "indefinite (...)" to minutes (Infinity for indefinite); null if it reads otherwise. */
-export function durationMinutes(text: string): Span | null {
-  const t = text.replace(/\(.*\)/, "").trim();
-  if (/^indefinite$/.test(t)) return { lo: Infinity, hi: Infinity };
-  const m = /^(\d+(?:\.\d+)?)(?: (min|h))? to (\d+(?:\.\d+)?|indefinite)(?: (min|h))?$/.exec(t);
-  if (!m) return null;
-  const unit = (u: string | undefined) => u === "h" ? 60 : 1, lastUnit = m[4] ?? m[2];
-  const hi = m[3] === "indefinite" ? Infinity : Number(m[3]) * unit(m[4] ?? lastUnit);
-  return { lo: Number(m[1]) * unit(m[2] ?? lastUnit), hi };
-}
-
-export interface ColdWater { row: LibraryRow; exhaustionMin: Span | null; survivalMin: Span | null }
-
-/** The `physiology.cold_water` row for a water temperature (C) with its times in minutes. Bands: "0 to 5", ... "over 27"; an edge belongs to the colder band. */
-export function coldWater(waterC: number): ColdWater | null {
-  for (const row of libraryTable("physiology", "cold_water")) {
-    const t = String(row["Water (C)"]), r = /^(-?[\d.]+) to ([\d.]+)$/.exec(t), o = /^over ([\d.]+)$/.exec(t);
-    const hit = r ? waterC >= Number(r[1]) && waterC <= Number(r[2]) : o ? waterC > Number(o[1]) : false;
-    if (hit) return { row, exhaustionMin: durationMinutes(String(row["Time to exhaustion or unconsciousness"])), survivalMin: durationMinutes(String(row["Expected survival"])) };
-  }
-  return null;
-}
-
 // ---------------------------------------------------------------------------------------------------------------- a place's outputs
 
 /** What the host supplies for a place at an hour. Humidity is a percentage; the host's climate tables stay with the host. */
@@ -154,7 +114,17 @@ export interface Conditions {
 export interface PlaceOutputs {
   wbgt_c: number | null; air_c: number; wet: string; sun_exposure: number | null; vector_exposure: null;
   felt_c: number | null; wind_felt_ms: number | null; daylight_h: number | null; is_day: boolean | null; sunburn_min: number | null;
-  exposure_row: string; cold_water_row: string | null; immersion_exhaustion_min: Span | null; immersion_survival_min: Span | null;
+  exposure_row: string; cold_water_row: string | null; immersion_exhaustion_min: { lo: number; hi: number } | null; immersion_survival_min: { lo: number; hi: number } | null;
+}
+
+/** Life supplies these readers; the place module does not own body response formulas or tables. */
+export interface ExposureReaders {
+  windChillC: (airC: number, windMS: number) => number | null;
+  coldWater: (waterC: number) => {
+    row: LibraryRow;
+    exhaustionMin: PlaceOutputs["immersion_exhaustion_min"];
+    survivalMin: PlaceOutputs["immersion_survival_min"];
+  } | null;
 }
 
 /**
@@ -163,19 +133,19 @@ export interface PlaceOutputs {
  * foul-water exposure are not in the library's table: `vector_exposure` is null (FLAGS.md). Felt temperature is the wind chill
  * in the cold and the air otherwise; null where the felt wind has no number for the row's wind word.
  */
-export function placeOutputs(terrain: string, c: Conditions): PlaceOutputs {
+export function placeOutputs(terrain: string, c: Conditions, life: ExposureReaders): PlaceOutputs {
   const x = exposure(terrain, c.sun), day = c.daylightH !== undefined;
   const wbgt = x.wbgtDeltaC === null ? null : wbgtBom(c.airC, c.rhPct) + x.wbgtDeltaC;
   const wind = x.windShare === null ? null : c.windMS * x.windShare;
   const cold = c.airC <= 10;
   const sunShare = c.sun ? x.sunShare : 0;
-  const water = c.waterC === undefined ? null : coldWater(c.waterC);
+  const water = c.waterC === undefined ? null : life.coldWater(c.waterC);
   return {
     wbgt_c: wbgt, air_c: c.airC,
     wet: c.rain && x.shade !== "full" ? "rain" : x.wet,
     sun_exposure: sunShare,
     vector_exposure: null,
-    felt_c: !cold ? c.airC : wind === null ? null : (windChillC(c.airC, wind) ?? c.airC),
+    felt_c: !cold ? c.airC : wind === null ? null : (life.windChillC(c.airC, wind) ?? c.airC),
     wind_felt_ms: wind,
     daylight_h: day ? c.daylightH! : null,
     is_day: c.hour !== undefined && day ? isDay(c.hour, c.daylightH!) : null,
@@ -190,9 +160,10 @@ export function placeOutputs(terrain: string, c: Conditions): PlaceOutputs {
  * A place (a component) reading the host's conditions each step: `conditions(w)` returns them for the place's terrain and the hour,
  * and the outputs go on the place's `props.outputs` by id. `props.wbgt_c` is set for physiology to read (cleared where null).
  */
-export function environmentProcess(place: string, terrain: string, conditions: (w: World) => Conditions, every = 60): Process {
+export function environmentProcess(place: string, terrain: string, conditions: (w: World) => Conditions, every: number, life: ExposureReaders,
+  outputs: (component: Component) => Record<string, number | string | null>): Process {
   return { name: "environment", every, step(w) {
-    const comp = w.registry.component(place), out = bodyOutputs(comp), o = placeOutputs(terrain, conditions(w));
+    const comp = w.registry.component(place), out = outputs(comp), o = placeOutputs(terrain, conditions(w), life);
     const { immersion_exhaustion_min: ex, immersion_survival_min: sv, is_day: day, ...rest } = o;
     Object.assign(out, rest, { is_day: day === null ? null : day ? 1 : 0,
       immersion_exhaustion_min_lo: ex?.lo ?? null, immersion_exhaustion_min_hi: ex?.hi ?? null,

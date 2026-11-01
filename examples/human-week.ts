@@ -16,7 +16,8 @@ import { eatMeal, stockPools, pooledNutrients, type MealItem } from '../src/nutr
 import { nutritionProcess } from '../src/nutrition.ts';
 import { airContents, roomAirProcess, roomGasFraction } from '../src/atmosphere.ts';
 import { breathingProcess } from '../src/respiration.ts';
-import { diurnalC, environmentProcess, isDay } from '../src/environment.ts';
+import { diurnalC, isDay } from '../src/environment.ts';
+import { environmentProcess } from '../src/exposure.ts';
 import { neuroCircuits, neurologyProcess } from '../src/neurology.ts';
 import { libraryRow } from '../src/library.ts';
 import { P_SEA_LEVEL, airDensity, C_TO_K, KCAL_J } from '../src/physics.ts';

@@ -14,6 +14,8 @@ export * from "./nutrition.ts";
 export * from "./atmosphere.ts";
 export * from "./respiration.ts";
 export * from "./environment.ts";
+export * from "./exposure.ts";
+export { placeOutputs, environmentProcess } from "./exposure.ts"; // preserve the host API with Life readers wired in
 export * from "./neurology.ts";
 export * from "./circulation.ts";
 export { bleedFactor } from "./circulation.ts"; // the bleeding table's (N - clotting) factor, by name for hosts

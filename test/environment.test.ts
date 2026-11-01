@@ -4,9 +4,11 @@ import { Scheduler } from "../src/scheduler.ts";
 import { defaultRegistry, type Component } from "../src/registry.ts";
 import { bodyOutputs } from "../src/physiology.ts";
 import {
-  WBGT_ERROR_C, coldWater, diurnalC, durationMinutes, environmentProcess, exposure, exposureIds, isDay, placeOutputs, sunburnFraction,
-  vapourPressureHpa, wbgtBom, windChillC,
+  WBGT_ERROR_C, diurnalC, exposure, exposureIds, isDay,
+  vapourPressureHpa, wbgtBom,
 } from "../src/environment.ts";
+import { coldWater, durationMinutes, sunburnFraction, windChillC } from "../src/exposure.ts";
+import { placeOutputs, environmentProcess } from "../src/index.ts";
 
 const OPEN = { airC: 31, rhPct: 75, windMS: 2, sun: true, rain: false };
 
