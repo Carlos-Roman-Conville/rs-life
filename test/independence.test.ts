@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { runHorseStable, horseRows, STABLE } from '../examples/horse-stable.ts';
-import { respiratoryProfile, respiratoryStateFromVo2 } from '../src/atmosphere.ts';
+import { respiratoryProfile, respiratoryStateFromVo2 } from '../src/respiration.ts';
 import { bodyOutputs, oxygenLitresPerMin } from '../src/physiology.ts';
 import { libraryRow } from '../src/library.ts';
 import { KCAL_J } from '../src/physics.ts';

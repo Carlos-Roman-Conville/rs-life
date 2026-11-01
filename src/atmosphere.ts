@@ -1,28 +1,11 @@
 /**
- * The air as one module: altitude to pressure and inspired oxygen, the room as a box, the sources and sinks of its gases, the
- * units a gas is spoken in, a grid of cells for a release, and the respiratory side that turns an air into a blood. Every
- * table number is read from `data/library/{atmosphere,gasdynamics,anatomy,physiology,circulation,chemistry}.json` through
- * library.ts and the rule texts are parsed, so a changed table changes the model. What the docs ask for and the library cannot
- * support is listed in FLAGS.md and left disabled here (a `null` rate switches that path off).
+ * The air: composition, altitude and pressure, gas units, room sources and sinks, and the transport grid.
+ * Table numbers come from data/library/{atmosphere,gasdynamics,chemistry}.json through library.ts.
+ * Breathing and its physiological library data live in respiration.ts; callers supply gas flows to applyGasFlows.
  *
- * Sources of the formulas (all in the library's rows; the host dashboard's respiratory calculator, `resp` in
- * body/dashboard.html, and gears/altitude-inspired-oxygen.md carry them in code and prose):
- * - pressure: the barometric formula in physics.ts (`pressureAtAltitude`, ATM-STD); inspired PO2 = FiO2 (P - 47 mmHg).
- * - alveolar gas equation (ATM-ALV): PAO2 = FiO2 (P - 47) - PaCO2 / 0.8; arterial PO2 = PAO2 less the A-a gradient.
- * - saturation, Severinghaus: SaO2 = 1 / (1 + 23400 / (PaO2^3 + 150 PaO2)) (`circulation.blood_gas`).
- * - COHb: dCOHb/dt = (COHb_eq - COHb) ln2 / t_half, COHb_eq = 0.16 ppm / 100, t_half 5 h x 6 / VE (`circulation.blood_gas`).
- * - ventilation: VO2 comes from physiology metabolic power; VE = 6 + 0.025 (VO2 - 250) up to the profile's maximum; x2 per 5 mmHg of PaCO2 over 40;
- *   a hypoxic drive under an alveolar PO2 of 60 (`physiology.ventilation`).
- * - box model: V dC/dt = S - Q (C - C_out), Q = ACH V / 60 (`gasdynamics.box_model`), the room as a component whose contents
- *   are the gases.
- * The calculator's own coefficients that no table carries (the A-a gradient 7 mmHg, the 0.7 retention of inspired CO2, the
- * hypoxic drive's 0.5, 15 and 25, the COHb cap 0.8) are in `CALCULATOR` below and listed as NOTE lines in FLAGS.md.
- *
- * Units: a flow in litres per minute is litres of gas at the room's own temperature and pressure (ideal gas, `gasdynamics.units`
- * mass-conservation row), so moles = p V / (R T). Every transfer into or out of a room is traced as `mass:<gas>`.
- *
- * Outputs by library id on `body.props.outputs` (`bodyOutputs`), written by `breathingProcess`: o2_frac, co2_ppm, co_ppm,
- * sao2, cohb, ventilation_l_min, and pressure_mmhg, inspired_po2_mmhg, alveolar_po2_mmhg, paco2_mmhg.
+ * A flow in litres per minute is gas at the room's temperature and pressure (ideal gas, gasdynamics.units),
+ * so moles = p V / (R T). Every transfer into or out of a room is traced as mass:<gas>.
+ * Unsupported rates remain disabled (null) and are listed in flags/atmosphere.md.
  */
 import type { Process } from "./scheduler.ts";
 import type { World } from "./world.ts";
@@ -31,10 +14,6 @@ import type { Trace } from "./trace.ts";
 import { C_TO_K, M, MMHG_PER_PA, R_GAS, airDensity, pressureAtAltitude, waterVapourPressure } from "./physics.ts";
 import { addHeat } from "./world.ts";
 import { libraryRow, type LibraryRow } from "./library.ts";
-import { bodyOutputs, metabolicRateW, oxygenLitresPerMin } from "./physiology.ts";
-import { saturation } from "./circulation.ts";
-// Compatibility export; circulation owns the blood-gas curve.
-export { saturation } from "./circulation.ts";
 
 // ---------------------------------------------------------------------------------------------------------------- the library's numbers
 
@@ -46,25 +25,11 @@ function grab(text: string, rx: RegExp, what: string, group = 1): number {
 }
 const cell = (file: string, table: string, id: string, column: string) => String(libraryRow(file, table, id)[column]);
 
-/**
- * Coefficients of the host dashboard's respiratory calculator (`resp`, body/dashboard.html) that no library table carries.
- * They are illustrative placeholders there (its caption says so); FLAGS.md lists each as a NOTE.
- */
-export const CALCULATOR = {
-  aaGradientMmHg: 7,           // arterial PO2 = alveolar PO2 - 7 (the anatomy row: "5 to 10 mmHg in health")
-  co2Retention: 0.7,           // PaCO2 = 40 + FiCO2 (P - 47) 0.7
-  hypoxicDropPerMmHg: 0.5, hypoxicDropMaxMmHg: 15, paco2FloorMmHg: 25, hypoxicCo2LimitFrac: 0.02,
-  cohbEqCap: 0.8,
-} as const;
-
 /** The default outside air's water vapour, kg per kg of dry air (the still's value, process.ts before it moved here). */
 export const OUTSIDE_WATER_KG_PER_KG = 0.012;
 
 interface Lib {
-  fo2: number; fco2: number; waterMmHg: number; rq: number;
-  cohbPerPpm: number; cohbHalfLifeH: number; cohbVentRef: number;
-  veBase: number; vePerMl: number; veOffset: number; veMax: number;
-  co2DriveFactor: number; co2DrivePerMmHg: number; paco2Normal: number; co2DriveFails: number; hypoxicBelow: number;
+  fo2: number; fco2: number; waterMmHg: number;
   uniformFrac: number; layerLow: number; layerHigh: number; heavyGases: string[];
 }
 let cached: Lib | null = null;
@@ -72,10 +37,6 @@ function lib(): Lib {
   if (cached) return cached;
   const baseline = (id: string, col: string) => cell("atmosphere", "baseline", `atmosphere.baseline.${id}`, col);
   const bg = (id: string) => cell("gasdynamics", "box_model", `gasdynamics.box_model.${id}`, "Formula");
-  const bg2 = (id: string, col: string) => cell("circulation", "blood_gas", `circulation.blood_gas.${id}`, col);
-  const vent = (id: string) => cell("physiology", "ventilation", `physiology.ventilation.${id}`, "Formula or value");
-  const coh = bg2("carboxyhaemoglobin-cohb", "Formula or rule");
-  const ve = vent("minute-ventilation"), drive = vent("the-carbon-dioxide-drive");
   const heavy = bg("heavier-gases-pool");
   const heavyIds = [...heavy.matchAll(/([A-Z][A-Za-z0-9]*) \(([\d.]+) x air\)/g)].map(m => m[1]!.toLowerCase());
   const layer = /lower half's concentration is x([\d.]+) the mean, the upper half x([\d.]+)/.exec(heavy);
@@ -84,15 +45,6 @@ function lib(): Lib {
     fo2: grab(baseline("oxygen-o2", "Dry-air fraction"), /([\d.]+)%/, "the oxygen fraction") / 100,
     fco2: grab(baseline("carbon-dioxide-co2", "Dry-air fraction"), /([\d.]+)%/, "the carbon dioxide fraction") / 100,
     waterMmHg: grab(baseline("water-vapour-h2o", "Partial pressure at sea level (mmHg)"), /(\d+)/, "the airway water vapour pressure"),
-    rq: grab(bg("oxygen-and-carbon-dioxide-move-together"), /\/ ([\d.]+) \(the respiratory quotient/, "the respiratory quotient"),
-    cohbPerPpm: grab(coh, /COHb_eq about ([\d.]+) x ppm \/ (\d+)/, "the COHb equilibrium") / grab(coh, /COHb_eq about ([\d.]+) x ppm \/ (\d+)/, "the COHb equilibrium", 2),
-    cohbHalfLifeH: grab(coh, /t_half (\d+) h/, "the COHb half-time"), cohbVentRef: grab(coh, /x VE\/(\d+)/, "the COHb ventilation reference"),
-    veBase: grab(ve, /VE = ([\d.]+) \+/, "the resting ventilation"), vePerMl: grab(ve, /\+ ([\d.]+) x \(VO2/, "the ventilation slope"),
-    veOffset: grab(ve, /\(VO2 - (\d+)\)/, "the ventilation offset"),
-    veMax: grab(cell("anatomy", "respiratory", "anatomy.respiratory.ventilation-capacity-maximal", "Human default"), /\d+ to (\d+)/, "the maximal ventilation"),
-    co2DriveFactor: grab(drive, /VE x ([\d.]+) per/, "the CO2 drive factor"), co2DrivePerMmHg: grab(drive, /per ([\d.]+) mmHg of PaCO2/, "the CO2 drive step"),
-    paco2Normal: grab(drive, /PaCO2 over (\d+)/, "the normal PaCO2"), co2DriveFails: grab(drive, /over (\d+) mmHg the drive fails/, "the CO2 drive limit"),
-    hypoxicBelow: grab(vent("the-hypoxic-drive"), /under (\d+) mmHg/, "the hypoxic drive threshold"),
     uniformFrac: grab(bg("return-to-baseline"), /within (\d+)% of the baseline/, "the uniform tolerance") / 100,
     layerLow: num(layer[1]!), layerHigh: num(layer[2]!), heavyGases: heavyIds,
   };
@@ -144,103 +96,6 @@ export function altitudeRow(altitudeM: number): LibraryRow {
   return rows.reduce((a, b) => Math.abs(Number(b["Altitude (m)"]) - altitudeM) < Math.abs(Number(a["Altitude (m)"]) - altitudeM) ? b : a);
 }
 
-/** Alveolar gas equation (ATM-ALV): PAO2 = FiO2 (P - 47) - PaCO2 / 0.8, mmHg, not below zero. */
-export function alveolarPO2(o2Frac: number, pressureMmHg: number, paco2MmHg: number): number {
-  const L = lib();
-  return Math.max(0, o2Frac * (pressureMmHg - L.waterMmHg) - paco2MmHg / L.rq);
-}
-
-// ---------------------------------------------------------------------------------------------------------------- respiratory (anatomy.respiratory)
-
-/** The respiratory profile of a species (`anatomy.respiratory`): the human defaults come from the library; a species overrides fields. */
-export interface RespiratoryProfile {
-  medium: "air" | "water" | "other";
-  maxVentilationLMin: number;      // the ventilation capacity, L/min (the upper end of the human row)
-  aaGradientMmHg: number;          // arterial PO2 = alveolar PO2 less this (5 to 10 in health)
-  restingVentilationLMin: number;  // the formula's base
-  ventilationPerMlVo2: number;     // L/min per mL/min of VO2 over the offset
-  vo2OffsetMlMin: number;
-}
-
-/** The human profile; `over` replaces fields for another species. */
-export function respiratoryProfile(over: Partial<RespiratoryProfile> = {}): RespiratoryProfile {
-  const L = lib();
-  return { medium: "air", maxVentilationLMin: L.veMax, aaGradientMmHg: CALCULATOR.aaGradientMmHg,
-    restingVentilationLMin: L.veBase, ventilationPerMlVo2: L.vePerMl, vo2OffsetMlMin: L.veOffset, ...over };
-}
-
-export interface InspiredAir { pressureMmHg: number; o2Frac: number; co2Frac: number; coPpm: number }
-
-export interface RespiratoryState {
-  vo2MlMin: number; inspiredPO2MmHg: number; paco2MmHg: number; alveolarPO2MmHg: number; arterialPO2MmHg: number;
-  sao2: number; ventilationLMin: number; cohbEq: number; cohbHalfTimeMin: number;
-}
-
-/**
- * The respiratory side for one body in one air: minute ventilation from the MET, the CO2 drive (x2 per 5 mmHg of PaCO2 over
- * 40, capped at the profile's maximum and held at the library's 70 mmHg where the drive fails) and the hypoxic drive, then the
- * alveolar gas equation, the A-a gradient and the Severinghaus curve; carbon monoxide gives no drive. The calculator's rules
- * for the retained inspired CO2 and the hypoxic drive are in `CALCULATOR`.
- */
-export function respiratoryState(air: InspiredAir, met: number, massKg: number, profile: RespiratoryProfile = respiratoryProfile()): RespiratoryState {
-  return respiratoryStateFromVo2(air, oxygenLitresPerMin(metabolicRateW(met, { mass: massKg, props: {} })) * 1000, profile);
-}
-
-/** Respiratory state using the same oxygen demand (mL/min) as the body's gas exchange. */
-export function respiratoryStateFromVo2(air: InspiredAir, vo2: number, profile: RespiratoryProfile = respiratoryProfile()): RespiratoryState {
-  const L = lib(), C = CALCULATOR, pw = air.pressureMmHg - L.waterMmHg;
-  const ve = Math.min(profile.maxVentilationLMin, profile.restingVentilationLMin + profile.ventilationPerMlVo2 * Math.max(0, vo2 - profile.vo2OffsetMlMin));
-  const pio2 = air.o2Frac * pw;
-  let paco2 = L.paco2Normal + air.co2Frac * pw * C.co2Retention;
-  let drive = Math.min(profile.maxVentilationLMin, ve * Math.pow(L.co2DriveFactor, Math.max(0, Math.min(paco2, L.co2DriveFails) - L.paco2Normal) / L.co2DrivePerMmHg));
-  const first = Math.max(0, pio2 - paco2 / L.rq);
-  if (first < L.hypoxicBelow && air.co2Frac < C.hypoxicCo2LimitFrac) {
-    const drop = Math.min(C.hypoxicDropMaxMmHg, (L.hypoxicBelow - first) * C.hypoxicDropPerMmHg);
-    paco2 = Math.max(C.paco2FloorMmHg, paco2 - drop);
-    drive = Math.min(profile.maxVentilationLMin, drive * (1 + drop / C.hypoxicDropMaxMmHg));
-  }
-  const pao2 = Math.max(0, pio2 - paco2 / L.rq), pa = Math.max(0, pao2 - profile.aaGradientMmHg);
-  return { vo2MlMin: vo2, inspiredPO2MmHg: pio2, paco2MmHg: paco2, alveolarPO2MmHg: pao2, arterialPO2MmHg: pa, sao2: saturation(pa),
-    ventilationLMin: drive, cohbEq: Math.min(CALCULATOR.cohbEqCap, L.cohbPerPpm * air.coPpm), cohbHalfTimeMin: L.cohbHalfLifeH * 60 / Math.max(1, drive / L.cohbVentRef) };
-}
-
-/** COHb after `minutes`: it approaches its equilibrium with the half-time the ventilation sets (uptake is faster at work). */
-export function cohbAfter(cohb: number, coPpm: number, ventilationLMin: number, minutes: number): number {
-  const L = lib(), eq = Math.min(CALCULATOR.cohbEqCap, L.cohbPerPpm * coPpm), half = L.cohbHalfLifeH * 60 / Math.max(1, ventilationLMin / L.cohbVentRef);
-  return cohb + (eq - cohb) * (1 - Math.pow(0.5, minutes / half));
-}
-
-// ---------------------------------------------------------------------------------------------------------------- the library's thresholds
-
-/** Species susceptibility data only; medicine owns diagnosis and consequences. */
-export function gasTolerances() {
-  const text = cell("anatomy", "respiratory", "anatomy.respiratory.gas-tolerances-species", "Human default");
-  return { hypoxiaO2Pct: grab(text, /under ([\d.]+)% O2/, "species oxygen tolerance"),
-    hypercapniaCo2Pct: grab(text, /CO2 over ([\d.]+)%/, "species carbon dioxide tolerance") };
-}
-
-export interface GasThreshold { at: number; unit: "%" | "ppm"; falling: boolean; effect: string }
-
-/** The inhalation effect thresholds of a gas (`chemistry.substances`): "1% drowsy; 3% headache" as {at, unit, falling, effect}. */
-export function gasThresholds(gas: string): GasThreshold[] {
-  const out: GasThreshold[] = [];
-  let text = cell("chemistry", "substances", gas, "Effect thresholds (inhalation)");
-  if (gas === "o2") text = cell("atmosphere", "thresholds_layering", "atmosphere.thresholds_layering.o2", "Exposure bands")
-    .replace("species hypoxia tolerance:", `${gasTolerances().hypoxiaO2Pct}%`);
-  if (gas === "co2") {
-    const course = cell("medicine", "exposure", "medicine.exposure.hypercapnia-the-close-air", "Course");
-    text = `${grab(course, /drowsy at ([\d.]+)%/, "drowsiness")}% drowsy; ${gasTolerances().hypercapniaCo2Pct}% headache, panting; ${grab(course, /confusion at ([\d.]+)%/, "confusion")}% confusion; ${grab(course, /narcosis ([\d.]+)/, "narcosis")}% unconscious`;
-  }
-  for (const piece of text.split(";")) {
-    const m = /^\s*(under |over )?([\d,.]+)(?: to [\d,.]+)? ?(%|ppm)\s*(.*)$/.exec(piece);
-    if (m) out.push({ at: num(m[2]!), unit: m[3] as "%" | "ppm", falling: m[1] === "under " || gas === "o2", effect: m[4]!.trim() });
-  }
-  return out;
-}
-
-/** A threshold in ppm. */
-export const thresholdPpm = (t: GasThreshold) => t.unit === "%" ? t.at * 1e4 : t.at;
-
 /** `chemistry.substances` "Density vs air" of a gas (registry id; water vapour is `h2o_v` there), or null where the row has none. */
 export function densityVsAir(gas: string): number | null {
   const v = libraryRow("chemistry", "substances", gas === "water" ? "h2o_v" : gas)["Density vs air"];
@@ -277,9 +132,6 @@ export function airContents(volumeM3: number, pressurePa: number, tC: number, wa
 }
 
 const STANDARD_GASES = ["o2", "n2", "co2", "co", "water"] as const;
-
-/** Gases tracked as `<gas>ppm` on a room and `<gas>ppmMin` on a body, besides the standard five. */
-export const EXPOSURE_GASES = ["co2", "co", "h2s", "so2", "ch4", "h2"] as const;
 
 /**
  * The room's box model: ventilation exchanges its gases and heat with the outside at ACH (V dC/dt = -Q (C - C_out), with the
@@ -325,16 +177,6 @@ export function roomAirProcess(room: string): Process {
 /** A flow of gases into (+) or out of (-) a room, litres per minute at the room's own conditions, keyed by registry gas id. */
 export type GasFlows = Record<string, number>;
 export interface GasSource { id: string; flows: GasFlows | ((w: World) => GasFlows) }
-
-/**
- * The gases a body exchanges from metabolic power in W: physiology supplies oxygen L/min and the respiratory quotient
- * (0.8) sets CO2. With no RMR inputs, 70 kg at 1 MET matches the person row (0.25 O2, 0.2 CO2) to 2%; 28 kg matches
- * the goat row's 0.1. Physiology handles breath water and sweat.
- */
-export function bodyGasFlows(metabolicW: number): GasFlows {
-  const o2 = oxygenLitresPerMin(metabolicW);
-  return { o2: -o2, co2: o2 * lib().rq };
-}
 
 const sourceRow = (id: string) => libraryRow("gasdynamics", "sources_sinks", `gasdynamics.sources_sinks.${id}`);
 
@@ -390,51 +232,6 @@ export function applyGasFlows(w: World, room: string, flows: GasFlows, dt: numbe
 export function sourcesProcess(room: string, sources: GasSource[], every = 1): Process {
   return { name: "sources", every, step(w, dt) {
     for (const s of sources) applyGasFlows(w, room, typeof s.flows === "function" ? s.flows(w) : s.flows, dt, `source:${s.id}`, s.id);
-  } };
-}
-
-// ---------------------------------------------------------------------------------------------------------------- exposure and breathing
-
-/**
- * Exposure integration for a body in a room: ppm-minutes of each gas the room reports (`<gas>ppm` on the room, `<gas>ppmMin`
- * summed on the body) and the peak (`<gas>ppmPeak`). Carbon dioxide reads ambient (400) and carbon monoxide zero where the room
- * reports none, as physiology did before this moved here.
- */
-export function accumulateExposure(body: Component, room: Component, dt: number): void {
-  const p = body.props, rp = room.props;
-  for (const gas of EXPOSURE_GASES) {
-    const ppm = rp[`${gas}ppm`] ?? (gas === "co2" ? 400 : undefined);
-    if (ppm === undefined) continue;
-    p[`${gas}ppmMin`] = (p[`${gas}ppmMin`] ?? 0) + ppmMinutes(ppm, dt / 60);
-    p[`${gas}ppmPeak`] = Math.max(p[`${gas}ppmPeak`] ?? 0, ppm);
-  }
-}
-
-export interface BreathingOptions { met?: number; every?: number; profile?: RespiratoryProfile }
-
-/**
- * A body breathing the room's air. Each step: the body takes O2 from the room and gives CO2 back (`bodyGasFlows` at
- * `outputs.metabolic_w` from physiology, else the `met` option through `metabolicRateW`), then the respiratory state of the room's air is written as outputs
- * by id and COHb moves toward its equilibrium. A profile whose medium is not air has no exchange and null outputs (gills and
- * water are not modelled: FLAGS.md). Place it after `roomAirProcess`.
- */
-export function breathingProcess(body: string, room: string, o: BreathingOptions = {}): Process {
-  const profile = o.profile ?? respiratoryProfile();
-  return { name: "breathing", every: o.every ?? 10, step(w, dt) {
-    const b = w.registry.component(body), r = w.registry.component(room), out = bodyOutputs(b);
-    if (profile.medium !== "air") { for (const id of ["o2_frac", "co2_ppm", "co_ppm", "sao2", "cohb", "ventilation_l_min"]) out[id] = null; return; }
-    const metabolicW = typeof out.metabolic_w === "number" ? out.metabolic_w
-      : o.met === undefined ? undefined : metabolicRateW(o.met, b);
-    if (metabolicW === undefined) throw new Error(`breathing: no metabolic rate for ${body}: run physiology first or pass the met option`);
-    const flows = bodyGasFlows(metabolicW);
-    applyGasFlows(w, room, flows, dt, "breathing", body);
-    const o2 = roomGasFraction(w, r, "o2"), co2 = roomGasFraction(w, r, "co2"), co = roomGasFraction(w, r, "co");
-    const s = respiratoryStateFromVo2({ pressureMmHg: r.props.pressurePa * MMHG_PER_PA, o2Frac: o2, co2Frac: co2, coPpm: co * 1e6 }, -flows.o2! * 1000, profile);
-    b.props.cohb = cohbAfter(b.props.cohb ?? 0, co * 1e6, s.ventilationLMin, dt / 60);
-    out.o2_frac = o2; out.co2_ppm = co2 * 1e6; out.co_ppm = co * 1e6;
-    out.sao2 = s.sao2; out.cohb = b.props.cohb; out.ventilation_l_min = s.ventilationLMin;
-    out.pressure_mmhg = r.props.pressurePa * MMHG_PER_PA; out.inspired_po2_mmhg = s.inspiredPO2MmHg;
-    out.alveolar_po2_mmhg = s.alveolarPO2MmHg; out.paco2_mmhg = s.paco2MmHg;
   } };
 }
 

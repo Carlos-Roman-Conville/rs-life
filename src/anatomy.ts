@@ -4,7 +4,7 @@
  */
 import { libraryRow, libraryTable, type LibraryRow } from "./library.ts";
 import { bodyOutputs, restingMetabolicRate } from "./physiology.ts";
-import { breathingProcess, respiratoryProfile, type RespiratoryProfile } from "./atmosphere.ts";
+import { breathingProcess, respiratoryProfile, type RespiratoryProfile } from "./respiration.ts";
 import { circulationProcess, initialiseCirculation, type CirculationOptions } from "./circulation.ts";
 import { eatMeal, poolLevel, type MealItem, type MealOptions } from "./nutrition.ts";
 import type { Component } from "./registry.ts";

@@ -3,7 +3,8 @@ import { defaultRegistry } from "../src/registry.ts";
 import { World } from "../src/world.ts";
 import { Scheduler } from "../src/scheduler.ts";
 import { bodyOutputs } from "../src/physiology.ts";
-import { saturation, cohbAfter } from "../src/atmosphere.ts";
+import { saturation } from "../src/circulation.ts";
+import { cohbAfter } from "../src/respiration.ts";
 import { bleed, circulationProcess, initialiseCirculation } from "../src/circulation.ts";
 
 /** A body bleeding for one simulated day at the engine's own one-second step, circulation every step. The host bleeds

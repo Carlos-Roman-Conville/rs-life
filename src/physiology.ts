@@ -20,7 +20,7 @@ import { addHeat, type World } from "./world.ts";
 import type { Component } from "./registry.ts";
 import { C_TO_K, KCAL_J, M, O2_ENERGY_J_PER_L, P_SEA_LEVEL, SWEAT_LATENT, heatFlow, metabolicHeat, molesInVolume, waterVapourPressure } from "./physics.ts";
 import { libraryMeta, libraryRow, libraryTable, type LibraryRow } from "./library.ts";
-import { accumulateExposure } from "./atmosphere.ts";
+import { accumulateExposure } from "./respiration.ts";
 import { trackCrisis } from "./crisis.ts";
 import { bodyMassDelta, glycogenBoundWaterKg, GLYCOGEN_BOUND_WATER } from "./nutrition.ts";
 

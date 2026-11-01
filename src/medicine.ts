@@ -4,7 +4,7 @@
  * is a `crisis` record with its cause: the engine never kills, the host decides (`resolveCrisis`). Blood leaves a wound
  * through circulation's `bleed`, so the volume ledger stays traced. Numbers the tables do not carry are in FLAGS.md.
  */
-import { gasTolerances } from "./atmosphere.ts";
+import { gasTolerances } from "./respiration.ts";
 import { libraryColumns, libraryRow, libraryTable, type LibraryRow } from "./library.ts";
 import { bodyOutputs } from "./physiology.ts";
 import { bleed } from "./circulation.ts";

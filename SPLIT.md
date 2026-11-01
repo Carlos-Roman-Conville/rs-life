@@ -88,7 +88,7 @@ built, because a port needs a built registry row. Quantity ids come from the reg
 2. **Untangle inside realism**, one belt unit each, full engine suite and the pirate world suite at each (a shared
    interface changes, PLATFORM.md section 11b):
    a. body constants out of `physics.ts` into `physiology.ts`, re-exported from the old names until hosts move;
-   b. split `atmosphere.ts` into `atmosphere.ts` (Reality) and `respiration.ts` (Life); `index.ts` re-exports both;
+   b. split `atmosphere.ts` into `atmosphere.ts` (Reality) and `respiration.ts` (Life); `index.ts` re-exports both; Done (2778).
    c. split `environment.ts` into `environment.ts` (Reality) and `exposure.ts` (Life);
    d. move `bodyProcess` from `process.ts` to `physiology.ts`;
    e. `trace.ts` keeps generic records; the `Crisis` type and its helpers live in `crisis.ts` only; Done (2777): trace keeps generic records; crisis.ts owns the crisis view.

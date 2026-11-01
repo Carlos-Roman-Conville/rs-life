@@ -7,7 +7,8 @@ import { libraryRow, libraryMeta, libraryTable } from "../src/library.ts";
 import { defaultRegistry } from "../src/registry.ts";
 import { World } from "../src/world.ts";
 import { bodyOutputs } from "../src/physiology.ts";
-import { saturation as atmosphereSaturation, cohbAfter } from "../src/atmosphere.ts";
+import { saturation as publicSaturation } from "../src/index.ts";
+import { cohbAfter } from "../src/respiration.ts";
 import { saturation, bleed, bleedFactor, bleedingClass, bleedingEffects, circulationProcess, circulationRules, hazard, initialiseCirculation, loseBlood, normalBloodVolume, oxygenDelivery, regulationLoops } from "../src/circulation.ts";
 
 function fixture() {
@@ -250,7 +251,7 @@ describe("one aerobic training pathway (2635)", () => {
 
 describe("circulation saturation ownership (2725)", () => {
   it("exports the curve with the three existing atmosphere expectations", () => {
-    expect(atmosphereSaturation).toBe(saturation);
+    expect(publicSaturation).toBe(saturation);
     expect(saturation(26.9)).toBeCloseTo(0.5, 1);
     expect(saturation(95)).toBeCloseTo(0.97, 2);
     expect(saturation(0)).toBe(0);

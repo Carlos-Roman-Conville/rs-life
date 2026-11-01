@@ -1,4 +1,5 @@
-import { airContents, breathingProcess, gasThresholds, gasTolerances } from "../src/atmosphere.ts";
+import { airContents } from "../src/atmosphere.ts";
+import { breathingProcess, gasThresholds, gasTolerances } from "../src/respiration.ts";
 import { describe, expect, it, vi } from "vitest";
 import { defaultRegistry } from "../src/registry.ts";
 import { World } from "../src/world.ts";

@@ -7,11 +7,9 @@ import { MMHG_PER_PA, M, pressureAtAltitude } from "../src/physics.ts";
 import { libraryRow } from "../src/library.ts";
 import { bodyOutputs, metOf, metabolicRateW } from "../src/physiology.ts";
 import { roomProcess } from "../src/process.ts";
-import {
-  CALCULATOR, Grid, accumulateExposure, achFromFlow, airContents, altitudeAir, altitudeRow, alveolarPO2, baselineAir, bodyGasFlows, breathingProcess,
-  cohbAfter, fireFlows, flowFromAch, gasThresholds, inhaledDoseLitres, lampFlows, layeredPpm, litresToMoles, partialPressureMmHg, ppmMinutes, respiratoryProfile,
-  respiratoryState, roomAirProcess, roomGasFraction, rotFlows, saturation, sourcesProcess, sulphurFlows, thresholdPpm, densityVsAir, fractionToPpm, ppmToFraction,
-} from "../src/atmosphere.ts";
+import { CALCULATOR, accumulateExposure, alveolarPO2, bodyGasFlows, breathingProcess, cohbAfter, gasThresholds, respiratoryProfile, respiratoryState, thresholdPpm } from "../src/respiration.ts";
+import { Grid, achFromFlow, airContents, altitudeAir, altitudeRow, baselineAir, fireFlows, flowFromAch, inhaledDoseLitres, lampFlows, layeredPpm, litresToMoles, partialPressureMmHg, ppmMinutes, roomAirProcess, roomGasFraction, rotFlows, sourcesProcess, sulphurFlows, densityVsAir, fractionToPpm, ppmToFraction } from "../src/atmosphere.ts";
+import { saturation } from "../src/circulation.ts";
 
 const SLEEPING = metOf("sleeping");
 const comp = (id: string, kind: string, over: Partial<Component> = {}): Component => ({ id, kind, material: kind === "body" ? "flesh" : "air_mass", mass: kind === "body" ? 70 : 10,
