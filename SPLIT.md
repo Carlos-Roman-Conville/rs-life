@@ -60,7 +60,13 @@ re-owned the registry rows by domain tag.** Phase 6 mechanics is built in a new 
 
 ## 4. Cross-reads that become kernel ports
 
-Each line is one port the Kernel registers (`kernel.json`), writer first. Ports marked planned belong to phases not built.
+Each line is one port, declared in the writer's and the reader's own kernel.json and checked by the kernel (Kernel
+DESIGN section 8.1): the reader declares a direction "in" port on the quantity; the writer keeps the quantity in its
+process writes and stays its only writer. A two-way row (body heat; water between vessels and bodies) is one quantity
+per direction, each with its own single writer; water and food moved through the substrate ledger are
+Reality-written ledger quantities that Life reads, or calls when Life's action makes Reality move them (drinking);
+food from a container has the host or Economy as writer. Rows marked planned get no port until their mechanism is
+built, because a port needs a built registry row. Quantity ids come from the registry keeper. (2775)
 
 | Port | Writer -> reader | Today |
 |---|---|---|
@@ -87,12 +93,14 @@ Each line is one port the Kernel registers (`kernel.json`), writer first. Ports 
    d. move `bodyProcess` from `process.ts` to `physiology.ts`;
    e. `trace.ts` keeps generic records; the `Crisis` type and its helpers live in `crisis.ts` only;
    f. a lint check (a test) that no Reality-side module imports a Life-side one.
-3. **Ports.** The Kernel keeper registers the section 4 ports; realism's processes read and write through them while
-   still in one package; numbers unchanged (golden outputs).
+3. **Process declarations.** `kernel.json` declares one process per mechanism group, so every quantity has one
+   declared writer (unit 2765), and the garbled quantity ids are replaced by the registry's clean ones. The section 4
+   ports are declared after step 4, one Composer unit in each package's lane, needing the move.
 4. **New package.** `Toolchain/reality/` (`@rex/reality`, own repo, importing `@rex/kernel` only) receives the Reality-side
    modules, library files and tests by a history-keeping move (git subtree or filter-repo); phase 6 mechanics starts
    there. `realism` keeps the Life side and is renamed to Life later (Rex's `rs-life`); until then the backup job mirrors
-   `realism` to `rs-life`.
+   `realism` to `rs-life`. Then each package declares its section 4 ports in its
+   own kernel.json (DESIGN section 8.1).
 5. **Hosts.** The pirate web links both packages; its world suite passes against the pair.
 6. **Re-audit.** The registry keeper re-audits ownership; the lint check from step 2f runs in both packages.
 
