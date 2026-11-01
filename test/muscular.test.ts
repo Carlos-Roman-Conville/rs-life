@@ -1,11 +1,36 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import * as library from "../src/library.ts";
 import { libraryRow, libraryTable } from "../src/library.ts";
 import { Trace } from "../src/trace.ts";
 import { adaptMuscleDay, createMuscularState, muscularActivation, muscularBanisterDay,
-  muscularEnduranceReference, muscularOutputs, muscularRates, muscularStimuli, stepMuscleFatigue } from "../src/muscular.ts";
+  muscularEnduranceReference, muscularOutputs, muscularRates, muscularStimuli, stepMuscleFatigue,
+  type Compartments } from "../src/muscular.ts";
 
 const initial = () => createMuscularState({ contractile: 50, oxidative: 50, min: 10, max: 100, recruitment: 50 });
 const fresh = { resting: 1, active: 0, fatigued: 0 };
+// Pre-2833 integrator, retained only here; dt=1 reproduces its explicit Euler
+// transfers and 2832 roundoff repair. Smaller dt measures its truncation error.
+function euler(state: Compartments, e: number, F: number, R: number, seconds: number, step = 1) {
+  const s = { ...state }, flows = { recruit: 0, fatigue: 0, recover: 0 };
+  for (let elapsed = 0; elapsed < seconds;) {
+    const dt = Math.min(step, seconds - elapsed);
+    const recruit = e * s.resting * dt, fatigue = F * s.active * dt, recover = R * s.fatigued * dt;
+    s.resting -= recruit; s.active += recruit;
+    s.active -= fatigue; s.fatigued += fatigue;
+    s.fatigued -= recover; s.resting += recover;
+    flows.recruit += recruit; flows.fatigue += fatigue; flows.recover += recover;
+    s.resting = Math.max(0, Math.min(1, s.resting));
+    s.active = Math.max(0, Math.min(1, s.active));
+    s.fatigued = Math.max(0, Math.min(1, s.fatigued));
+    const total = s.resting + s.active + s.fatigued;
+    s.resting /= total; s.active /= total; s.fatigued /= total;
+    elapsed += dt;
+  }
+  return { state: s, flows };
+}
+const distance = (a: Compartments, b: Compartments) =>
+  Math.max(...(['resting', 'active', 'fatigued'] as const).map(k => Math.abs(a[k] - b[k])));
+
 const day = { tension: 10, aerobic: 0, used: true, hoursSinceHardSession: 48,
   proteinGate: 1, energyGate: 1, sleepGate: 1, ageGate: 1 };
 
@@ -57,14 +82,15 @@ describe("seconds-based three-compartment fatigue", () => {
     expect(s.fatigued).toBeLessThanOrEqual(1e-12);
     expect(() => stepMuscleFatigue({ ...fresh, resting: 1.001 }, group, 0, 60, 1)).toThrow();
   });
-  it("traces transfers and conserves fibres every second; split steps agree", () => {
+  it("traces integrated transfers and conserves fibres once per call; split steps agree", () => {
     const trace = new Trace();
     const result = stepMuscleFatigue(fresh, "hand", 0.5, 120, 1, trace)!;
     const half = stepMuscleFatigue(fresh, "hand", 0.5, 60, 1)!;
-    expect(stepMuscleFatigue(half, "hand", 0.5, 60, 1)).toEqual(result);
+    expect(distance(stepMuscleFatigue(half, "hand", 0.5, 60, 1)!, result)).toBeLessThanOrEqual(1e-12);
     expect(trace.failed()).toEqual([]);
-    expect(trace.checks).toHaveLength(120);
-    expect(trace.transfers.length).toBeGreaterThan(120);
+    expect(trace.checks).toHaveLength(1);
+    expect(trace.checks[0].t).toBe(120);
+    expect(trace.transfers).toHaveLength(3);
     for (const [key, v] of Object.entries(result)) {
       const node = `hand:${key}`;
       expect((key === "resting" ? 1 : 0) + trace.into(node, "muscle-fraction:hand") - trace.outOf(node, "muscle-fraction:hand")).toBeCloseTo(v, 12);
@@ -91,6 +117,106 @@ describe("seconds-based three-compartment fatigue", () => {
     expect(stepMuscleFatigue(s, "hand", 0, 0, 1)).toEqual(s);
     expect(stepMuscleFatigue(fresh, "neck", 0.5, 1, 1)).toBeNull();
     expect(() => stepMuscleFatigue(fresh, "hand", 2, 1, 1)).toThrow();
+  });
+});
+
+describe("exact 3CC (2833)", () => {
+  it('keeps the group 7 schedule endpoint within Euler refinement error', () => {
+    const sewing = muscularActivation('muscular.activations.mending-sail-seated-palm-and-needle').groups.hand!;
+    const rowing = muscularActivation('muscular.activations.rowing-the-boat').groups.hand!;
+    const { F, R } = muscularRates('hand')!;
+    const run = (dt: number) => euler(euler(fresh, sewing, F, R, 3600, dt).state, rowing, F, R, 3600, dt).state;
+    const coarse = run(1), fine = run(0.1);
+    const exact = stepMuscleFatigue(stepMuscleFatigue(fresh, 'hand', sewing, 3600, 1)!, 'hand', rowing, 3600, 1)!;
+    // Both bouts reach equilibrium: the discretisation error is below roundoff.
+    expect(distance(coarse, exact)).toBeLessThanOrEqual(1.1 * distance(coarse, fine) / 0.9 + 1e-12);
+  });
+  it.each([['hand', 0.5, 1], ['biceps', 1, 1], ['quads', 1, 1], ['delt_mid', 0.2, 0.5]] as const)(
+    "%s agrees within Euler error and converges linearly at 1, 0.1, 0.01 s", (group, effort, multiplier) => {
+      const { F, R: rowR } = muscularRates(group)!, R = rowR * multiplier, seconds = 120;
+      const exact = stepMuscleFatigue(fresh, group, effort, seconds, multiplier)!;
+      const errors = [1, 0.1, 0.01].map(dt => distance(euler(fresh, effort, F, R, seconds, dt).state, exact));
+      for (let i = 1; i < errors.length; i++) {
+        expect(errors[i - 1] / errors[i]).toBeGreaterThan(9);
+        expect(errors[i - 1] / errors[i]).toBeLessThan(11);
+      }
+      // Q is a Markov generator: exp(tQ) and I+hQ contract in the 1-norm.
+      // Telescoping local Taylor remainders gives ||error||_1 <= T*h*||Q²p0||_1/2.
+      const q2Norm = effort * effort + effort * (effort + F) + effort * F;
+      expect(errors[0]).toBeLessThanOrEqual(seconds * q2Norm / 2);
+      // A much tighter, observed first-order estimate from the two Euler grids.
+      const coarse = euler(fresh, effort, F, R, seconds).state;
+      const fine = euler(fresh, effort, F, R, seconds, 0.1).state;
+      expect(errors[0]).toBeLessThanOrEqual(1.1 * distance(coarse, fine) / 0.9);
+    });
+
+  it.each([
+    { name: 'real distinct', e: 0.5, F: 0.25, R: 0, sign: 1 },
+    { name: 'repeated', e: 1, F: 0.25, R: 0.25, sign: 0 },
+    { name: 'complex', e: 0.25, F: 0.25, R: 0.25, sign: -1 },
+  ])("handles $name eigenvalues with test-only rates", ({ name, e, F, R, sign }) => {
+    const row = library.libraryRow;
+    const spy = vi.spyOn(library, 'libraryRow').mockImplementation((file, table, id) => {
+      const result = row(file, table, id);
+      return file === 'muscular' && table === 'fatigue_rates' ? { ...result, 'F (per s)': F, 'R (per s)': R } : result;
+    });
+    try {
+      expect(Math.sign((e + F + R) ** 2 / 4 - (e * F + e * R + F * R))).toBe(sign);
+      const T = 3, next = stepMuscleFatigue(fresh, 'hand', e, T, 1)!;
+      let expected: Compartments;
+      if (name === 'real distinct') {
+        const resting = Math.exp(-e * T), active = e * (Math.exp(-e * T) - Math.exp(-F * T)) / (F - e);
+        expected = { resting, active, fatigued: 1 - resting - active };
+      } else if (name === 'repeated') {
+        const active = 4 / 9 + (-4 / 9 + 2 * T / 3) * Math.exp(-3 * T / 4);
+        const fatigued = 4 / 9 + (-4 / 9 - T / 3) * Math.exp(-3 * T / 4);
+        expected = { resting: 1 - active - fatigued, active, fatigued };
+      } else {
+        const p = (k: number) => (1 + 2 * Math.exp(-3 * e * T / 2) * Math.cos(Math.sqrt(3) * e * T / 2 - 2 * Math.PI * k / 3)) / 3;
+        expected = { resting: p(0), active: p(1), fatigued: p(2) };
+      }
+      expect(distance(next, expected)).toBeLessThanOrEqual(1e-12);
+      expect(distance(next, euler(fresh, e, F, R, T, 0.0001).state)).toBeLessThan(2e-5);
+      let split = { ...fresh };
+      for (let i = 0; i < 30; i++) split = stepMuscleFatigue(split, 'hand', e, T / 30, 1)!;
+      expect(distance(next, split)).toBeLessThanOrEqual(1e-12);
+    } finally { spy.mockRestore(); }
+  });
+
+  it.each([0, 0.5, 1])("is step independent through transients and 12 hours at recovery multiplier %s", multiplier => {
+    for (const group of ['hand', 'biceps', 'delt_mid', 'quads', 'abs', 'calves']) {
+      for (const effort of [1e-10, 0.01, 0.5, 1]) for (const T of [0.01, 3, 120, 43200]) {
+        const start = { resting: 0.2, active: 0.3, fatigued: 0.5 };
+        const whole = stepMuscleFatigue(start, group, effort, T, multiplier)!;
+        for (const n of [2, 17, 100]) {
+          let split = { ...start };
+          for (let i = 0; i < n; i++) split = stepMuscleFatigue(split, group, effort, T / n, multiplier)!;
+          expect(distance(whole, split)).toBeLessThanOrEqual(1e-12);
+        }
+        for (const value of Object.values(whole)) { expect(value).toBeGreaterThanOrEqual(0); expect(value).toBeLessThanOrEqual(1); }
+        expect(Math.abs(whole.resting + whole.active + whole.fatigued - 1)).toBeLessThanOrEqual(1e-12);
+      }
+    }
+  });
+
+  it.each([1e-8, 0.1, 0.9, 1, 120, 43200])("accounts for integrated flows and one final check over %s seconds", T => {
+    const start = { resting: 0.2, active: 0.3, fatigued: 0.5 }, trace = new Trace(), splitTrace = new Trace();
+    const result = stepMuscleFatigue(start, 'hand', 0.5, T, 1, trace, 7)!;
+    let split = { ...start };
+    for (let i = 0; i < 10; i++) split = stepMuscleFatigue(split, 'hand', 0.5, T / 10, 1, splitTrace)!;
+    expect(trace.checks).toHaveLength(1); expect(trace.checks[0].t).toBe(7 + T);
+    expect(trace.failed()).toEqual([]); expect(trace.transfers).toHaveLength(3);
+    for (const key of ['resting', 'active', 'fatigued'] as const) {
+      const node = `hand:${key}`, quantity = 'muscle-fraction:hand';
+      expect(Math.abs(start[key] + trace.into(node, quantity) - trace.outOf(node, quantity) - result[key])).toBeLessThanOrEqual(1e-12);
+      expect(Math.abs(trace.outOf(node, quantity) - splitTrace.outOf(node, quantity))).toBeLessThanOrEqual(1e-12);
+    }
+    for (const transfer of trace.transfers) expect(transfer.amount).toBeGreaterThanOrEqual(0);
+    if (T === 120) {
+      const { F, R } = muscularRates('hand')!, reference = euler(start, 0.5, F, R, T, 0.001);
+      for (const [i, key] of (['recruit', 'fatigue', 'recover'] as const).entries())
+        expect(Math.abs(trace.transfers[i].amount - reference.flows[key])).toBeLessThan(1e-5);
+    }
   });
 });
 

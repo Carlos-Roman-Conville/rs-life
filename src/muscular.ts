@@ -55,7 +55,7 @@ export function muscularActivation(actionId: string) {
 }
 
 export interface Compartments { resting: number; active: number; fatigued: number }
-/** Explicit seconds, with the doc's one-second steps (a shorter final step is allowed).
+/** Exact constant-effort evolution in seconds (gears/muscular-3cc.md).
  * At rest active fibres are released; MF then follows the documented exact exponential.
  * Transfers and sum-to-one checks are returned through the shared Trace when supplied. */
 export function stepMuscleFatigue(state: Compartments, group: string, effort: number, seconds: number,
@@ -90,14 +90,62 @@ export function stepMuscleFatigue(state: Compartments, group: string, effort: nu
     move("fatigued", "resting", s.fatigued * -Math.expm1(-R * seconds), t);
     check(t + seconds);
   } else {
-    for (let elapsed = 0; elapsed < seconds;) {
-      const dt = Math.min(1, seconds - elapsed);
-      const recruit = effort * s.resting * dt, fatigue = rates.F * s.active * dt, recover = R * s.fatigued * dt;
-      move("resting", "active", recruit, t + elapsed);
-      move("active", "fatigued", fatigue, t + elapsed);
-      move("fatigued", "resting", recover, t + elapsed);
-      elapsed += dt; check(t + elapsed);
+    // x' = A x + (e, 0), A = [-(e+F), -e; F, -R].
+    // exp(A T) = (1+c) I + b (A+h I), h = -tr(A)/2.
+    const e = effort, F = rates.F, h = (e + F + R) / 2;
+    const determinant = e * (F + R) + F * R;
+    const aStar = e * R / determinant, fStar = e * F / determinant;
+    const a = s.active - aStar, f = s.fatigued - fStar;
+    const discriminant = h * h - determinant;
+    let c: number, b: number;
+    if (discriminant > 0) {
+      const d = Math.sqrt(discriminant);
+      // Both exponents are nonpositive: avoid exp(-hT)*cosh(dT) overflow
+      // and cancellation in the slow eigenvalue -h+d.
+      const slow = -determinant / (h + d), fast = -h - d;
+      c = (Math.expm1(slow * seconds) + Math.expm1(fast * seconds)) / 2;
+      b = Math.exp(slow * seconds) * -Math.expm1(-2 * d * seconds) / (2 * d);
+    } else if (discriminant < 0) {
+      const d = Math.sqrt(-discriminant), angle = d * seconds, decay = Math.exp(-h * seconds);
+      c = Math.expm1(-h * seconds) - 2 * decay * Math.sin(angle / 2) ** 2;
+      b = decay * Math.sin(angle) / d;
+    } else {
+      c = Math.expm1(-h * seconds);
+      b = Math.exp(-h * seconds) * seconds;
     }
+    const da = c * a + b * ((h - e - F) * a - e * f);
+    const df = c * f + b * (F * a + (h - R) * f);
+    s.active += da; s.fatigued += df;
+    s.resting = 1 - s.active - s.fatigued;
+    if (trace) {
+      // Integrate the rates over the call, preserving circulation as well as
+      // endpoint differences. Integral(x-x*) = A^-1 (x(T)-x(0)).
+      let fatigue = F * (aStar * seconds + (-R * da + e * df) / determinant);
+      let recruit = fatigue + da, recover = fatigue - df;
+      if (2 * h * seconds < 0.5) {
+        // Analytic Taylor integral for short calls avoids subtracting nearly
+        // equal terms above. These are 18 matrix powers, never time substeps;
+        // the omitted tail is below double precision for ||Q T||_1 < 1.
+        let rTerm = state.resting * seconds, aTerm = state.active * seconds, fTerm = state.fatigued * seconds;
+        let rIntegral = rTerm, aIntegral = aTerm, fIntegral = fTerm;
+        for (let k = 2; k <= 19; k++) {
+          const scale = seconds / k;
+          const nextR = (-e * rTerm + R * fTerm) * scale;
+          const nextA = (e * rTerm - F * aTerm) * scale;
+          const nextF = (F * aTerm - R * fTerm) * scale;
+          rIntegral += nextR; aIntegral += nextA; fIntegral += nextF;
+          rTerm = nextR; aTerm = nextA; fTerm = nextF;
+        }
+        recruit = e * rIntegral; fatigue = F * aIntegral; recover = R * fIntegral;
+      }
+      for (const [from, to, amount] of [
+        ["resting", "active", recruit], ["active", "fatigued", fatigue], ["fatigued", "resting", recover],
+      ] as const) {
+        if (amount) trace.record({ t, process: "muscular", quantity: `muscle-fraction:${group}`,
+          from: `${group}:${from}`, to: `${group}:${to}`, amount: Math.max(0, amount) });
+      }
+    }
+    check(t + seconds);
   }
   return s;
 }

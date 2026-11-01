@@ -26,23 +26,25 @@ one "unwrapped" row. The 3CC adds no trace transfers here, so its cost is lower 
 - **Room CO2 peak** (the highest value the audit sees, once per step) is higher at coarse steps: 2047 ppm at 3600 s against
   1377 ppm at 60 s (+6.7e+2 ppm), and up to 7.8e+1 ppm different at 600 s (day 6). Cause not investigated; the room-air process
   and the once-per-step sampling both depend on the step.
-- **Muscular 3CC does not depend on the outer step.** Under effort the loop sub-steps at 1 s whatever the step, and at zero effort
-  it is the closed form, so the compartments agree to 1.2e-14 (rounding) at every block end. The group shown is at its steady state
-  by the end of a block (fatigued 0.938), so the block-end values do not test a transient. Neurology circuits and sleep debt/core
-  temperature agree to rounding or exactly.
-- **Wall time.** Of the named processes, `muscular` is the largest at every step, and its cost is nearly constant (about 300 to 400
-  ms per simulated day for 8 h of effort on every group the three activities engage) because the sub-step count follows worked
-  seconds, not outer steps. Everything else scales with the number of steps, so at 3600 s muscular is 97% of the run and at 1 s it
-  is 15% (the unwrapped ledger and audit work is 59% there). Machine: see the table.
+- **Muscular 3CC does not depend on the outer step.** As of (2833), constant-effort calls use the exact matrix
+  exponential, and zero effort retains closed-form recovery. The tables agree to rounding. The group shown is at its
+  steady state by the end of a block (fatigued 0.938); transient convergence and split-call agreement to 1e-12 are
+  separately verified in `test/muscular.test.ts`.
+- **Wall time, remeasured 2026-11-01 (2833).** Muscular cost now scales with outer calls rather than worked seconds.
+  The same script, on this machine, before -> after: at 60 s, muscular 545.9 -> 129.2 ms/day and total 1256.4 -> 674.0;
+  at 3600 s, muscular 328.9 -> 1.9 ms/day and total 339.9 -> 11.3. These are individual wall-clock runs, subject to
+  machine load and JIT variation. The original 2819 record had muscular 391.2/296.1 and total 874.6/306.7 ms/day at
+  60/3600 s. The wall table, 3CC tables and dominant-process summary below are the new run; other tables retain the
+  original measurement. No rate or activation changed. At 3600 s muscular now accounts for 17% of the total,
+  against 97% before; the unwrapped audit/ledger work dominates total time.
 
 ## Library finding: rounding at long rest
 
-`stepMuscleFatigue` throws `muscular: compartment conservation failed` when a long rest leaves `resting` one unit in the last place
-above 1 (its bound check is exact, the sum check is 1e-12). A group worked and then rested for hours at a 60 s step reaches it
-(first seen on delt_mid after about 600 minutes of rest). The measurement guards against it in the probe only: a muscle with no
-active fibres and `fatigued` below 1e-9 (`REST_SNAP` in the script) is set to exactly rested before the next step. That is an
-error of at most 1e-9 in a compartment, below every digit in the tables, and the library was not changed. `muscularFatigueProcess`
-has the same exposure.
+The original (2819) run found `stepMuscleFatigue` throwing when long rest left `resting` one unit in the last place
+above 1. Its probe-only `REST_SNAP` workaround has since been removed by (2832), which repairs only roundoff within
+1e-12 after checking conservation and bounds. The 2026-11-01 (2833) rerun uses that library guard directly, with no
+probe snap. Exact constant-effort evolution preserves the same guard. This numerical verification does not extend
+empirical validation; see `flags/muscular.md` (2634) and (2833), and `gears/muscular-3cc.md`.
 
 # The tables
 
@@ -183,61 +185,61 @@ Muscular 3CC group shown: `forearm_flex.L` (largest fatigued fraction at 60 s, d
 
 | quantity | 60 s | 600 s | 3600 s | 600 s − 60 s | 3600 s − 60 s |
 |---|---|---|---|---|---|
-| day 1 12:00 resting | 0.000750 | 0.000750 | 0.000750 | 0.00e+0 | 0.00e+0 |
-| day 1 12:00 active | 0.061257 | 0.061257 | 0.061257 | 0.00e+0 | 0.00e+0 |
-| day 1 12:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 0.00e+0 | 0.00e+0 |
-| day 1 17:00 resting | 0.000750 | 0.000750 | 0.000750 | 0.00e+0 | 0.00e+0 |
-| day 1 17:00 active | 0.061257 | 0.061257 | 0.061257 | 0.00e+0 | 0.00e+0 |
-| day 1 17:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 0.00e+0 | 0.00e+0 |
-| day 2 12:00 resting | 0.000750 | 0.000750 | 0.000750 | 0.00e+0 | 0.00e+0 |
-| day 2 12:00 active | 0.061257 | 0.061257 | 0.061257 | 0.00e+0 | 0.00e+0 |
-| day 2 12:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 0.00e+0 | 0.00e+0 |
-| day 2 17:00 resting | 0.000750 | 0.000750 | 0.000750 | 0.00e+0 | 0.00e+0 |
-| day 2 17:00 active | 0.061257 | 0.061257 | 0.061257 | 0.00e+0 | 0.00e+0 |
-| day 2 17:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 0.00e+0 | 0.00e+0 |
-| day 3 12:00 resting | 0.000750 | 0.000750 | 0.000750 | 0.00e+0 | 0.00e+0 |
-| day 3 12:00 active | 0.061257 | 0.061257 | 0.061257 | 0.00e+0 | 0.00e+0 |
-| day 3 12:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 0.00e+0 | 0.00e+0 |
-| day 3 17:00 resting | 0.000750 | 0.000750 | 0.000750 | 0.00e+0 | 0.00e+0 |
-| day 3 17:00 active | 0.061257 | 0.061257 | 0.061257 | 0.00e+0 | 0.00e+0 |
-| day 3 17:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 0.00e+0 | 0.00e+0 |
-| day 4 12:00 resting | 0.000750 | 0.000750 | 0.000750 | 0.00e+0 | 0.00e+0 |
-| day 4 12:00 active | 0.061257 | 0.061257 | 0.061257 | 0.00e+0 | 0.00e+0 |
-| day 4 12:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 0.00e+0 | 0.00e+0 |
-| day 4 17:00 resting | 0.000750 | 0.000750 | 0.000750 | 0.00e+0 | 0.00e+0 |
-| day 4 17:00 active | 0.061257 | 0.061257 | 0.061257 | 0.00e+0 | 0.00e+0 |
-| day 4 17:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 0.00e+0 | 0.00e+0 |
-| day 5 12:00 resting | 0.000750 | 0.000750 | 0.000750 | 0.00e+0 | 0.00e+0 |
-| day 5 12:00 active | 0.061257 | 0.061257 | 0.061257 | 0.00e+0 | 0.00e+0 |
-| day 5 12:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 0.00e+0 | 0.00e+0 |
-| day 5 17:00 resting | 0.000750 | 0.000750 | 0.000750 | 0.00e+0 | 0.00e+0 |
-| day 5 17:00 active | 0.061257 | 0.061257 | 0.061257 | 0.00e+0 | 0.00e+0 |
-| day 5 17:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 0.00e+0 | 0.00e+0 |
-| day 6 12:00 resting | 0.000750 | 0.000750 | 0.000750 | 0.00e+0 | 0.00e+0 |
-| day 6 12:00 active | 0.061257 | 0.061257 | 0.061257 | 0.00e+0 | 0.00e+0 |
-| day 6 12:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 0.00e+0 | 0.00e+0 |
-| day 6 17:00 resting | 0.000750 | 0.000750 | 0.000750 | 0.00e+0 | 0.00e+0 |
-| day 6 17:00 active | 0.061257 | 0.061257 | 0.061257 | 0.00e+0 | 0.00e+0 |
-| day 6 17:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 0.00e+0 | 0.00e+0 |
-| day 7 12:00 resting | 0.000750 | 0.000750 | 0.000750 | 0.00e+0 | 0.00e+0 |
-| day 7 12:00 active | 0.061257 | 0.061257 | 0.061257 | 0.00e+0 | 0.00e+0 |
-| day 7 12:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 0.00e+0 | 0.00e+0 |
-| day 7 17:00 resting | 0.000750 | 0.000750 | 0.000750 | 0.00e+0 | 0.00e+0 |
-| day 7 17:00 active | 0.061257 | 0.061257 | 0.061257 | 0.00e+0 | 0.00e+0 |
-| day 7 17:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 0.00e+0 | 0.00e+0 |
+| day 1 12:00 resting | 0.000750 | 0.000750 | 0.000750 | -1.11e-16 | -1.11e-16 |
+| day 1 12:00 active | 0.061257 | 0.061257 | 0.061257 | -6.25e-17 | -6.25e-17 |
+| day 1 12:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 1.11e-16 | 1.11e-16 |
+| day 1 17:00 resting | 0.000750 | 0.000750 | 0.000750 | -1.11e-16 | -1.11e-16 |
+| day 1 17:00 active | 0.061257 | 0.061257 | 0.061257 | -6.25e-17 | -6.25e-17 |
+| day 1 17:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 1.11e-16 | 1.11e-16 |
+| day 2 12:00 resting | 0.000750 | 0.000750 | 0.000750 | -1.11e-16 | -1.11e-16 |
+| day 2 12:00 active | 0.061257 | 0.061257 | 0.061257 | -6.25e-17 | -6.25e-17 |
+| day 2 12:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 1.11e-16 | 1.11e-16 |
+| day 2 17:00 resting | 0.000750 | 0.000750 | 0.000750 | -1.11e-16 | -1.11e-16 |
+| day 2 17:00 active | 0.061257 | 0.061257 | 0.061257 | -6.25e-17 | -6.25e-17 |
+| day 2 17:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 1.11e-16 | 1.11e-16 |
+| day 3 12:00 resting | 0.000750 | 0.000750 | 0.000750 | -1.11e-16 | -1.11e-16 |
+| day 3 12:00 active | 0.061257 | 0.061257 | 0.061257 | -6.25e-17 | -6.25e-17 |
+| day 3 12:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 1.11e-16 | 1.11e-16 |
+| day 3 17:00 resting | 0.000750 | 0.000750 | 0.000750 | -1.11e-16 | -1.11e-16 |
+| day 3 17:00 active | 0.061257 | 0.061257 | 0.061257 | -6.25e-17 | -6.25e-17 |
+| day 3 17:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 1.11e-16 | 1.11e-16 |
+| day 4 12:00 resting | 0.000750 | 0.000750 | 0.000750 | -1.11e-16 | -1.11e-16 |
+| day 4 12:00 active | 0.061257 | 0.061257 | 0.061257 | -6.25e-17 | -6.25e-17 |
+| day 4 12:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 1.11e-16 | 1.11e-16 |
+| day 4 17:00 resting | 0.000750 | 0.000750 | 0.000750 | -1.11e-16 | -1.11e-16 |
+| day 4 17:00 active | 0.061257 | 0.061257 | 0.061257 | -6.25e-17 | -6.25e-17 |
+| day 4 17:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 1.11e-16 | 1.11e-16 |
+| day 5 12:00 resting | 0.000750 | 0.000750 | 0.000750 | -1.11e-16 | -1.11e-16 |
+| day 5 12:00 active | 0.061257 | 0.061257 | 0.061257 | -6.25e-17 | -6.25e-17 |
+| day 5 12:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 1.11e-16 | 1.11e-16 |
+| day 5 17:00 resting | 0.000750 | 0.000750 | 0.000750 | -1.11e-16 | -1.11e-16 |
+| day 5 17:00 active | 0.061257 | 0.061257 | 0.061257 | -6.25e-17 | -6.25e-17 |
+| day 5 17:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 1.11e-16 | 1.11e-16 |
+| day 6 12:00 resting | 0.000750 | 0.000750 | 0.000750 | -1.11e-16 | -1.11e-16 |
+| day 6 12:00 active | 0.061257 | 0.061257 | 0.061257 | -6.25e-17 | -6.25e-17 |
+| day 6 12:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 1.11e-16 | 1.11e-16 |
+| day 6 17:00 resting | 0.000750 | 0.000750 | 0.000750 | -1.11e-16 | -1.11e-16 |
+| day 6 17:00 active | 0.061257 | 0.061257 | 0.061257 | -6.25e-17 | -6.25e-17 |
+| day 6 17:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 1.11e-16 | 1.11e-16 |
+| day 7 12:00 resting | 0.000750 | 0.000750 | 0.000750 | -1.11e-16 | -1.11e-16 |
+| day 7 12:00 active | 0.061257 | 0.061257 | 0.061257 | -6.25e-17 | -6.25e-17 |
+| day 7 12:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 1.11e-16 | 1.11e-16 |
+| day 7 17:00 resting | 0.000750 | 0.000750 | 0.000750 | -1.11e-16 | -1.11e-16 |
+| day 7 17:00 active | 0.061257 | 0.061257 | 0.061257 | -6.25e-17 | -6.25e-17 |
+| day 7 17:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 1.11e-16 | 1.11e-16 |
 
 ### Muscular 3CC compartments, day 1, against the 1 s reference
 
 | quantity | 60 s | 600 s | 3600 s | 600 s − 60 s | 3600 s − 60 s | 1 s (day 1) | 60 s − 1 s | 600 s − 1 s | 3600 s − 1 s |
 |---|---|---|---|---|---|---|---|---|---|
-| day 1 12:00 resting | 0.000750 | 0.000750 | 0.000750 | 0.00e+0 | 0.00e+0 | 0.000750 | 0.00e+0 | 0.00e+0 | 0.00e+0 |
-| day 1 12:00 active | 0.061257 | 0.061257 | 0.061257 | 0.00e+0 | 0.00e+0 | 0.061257 | 0.00e+0 | 0.00e+0 | 0.00e+0 |
-| day 1 12:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 0.00e+0 | 0.00e+0 | 0.937993 | 0.00e+0 | 0.00e+0 | 0.00e+0 |
-| day 1 17:00 resting | 0.000750 | 0.000750 | 0.000750 | 0.00e+0 | 0.00e+0 | 0.000750 | 4.12e-18 | 4.12e-18 | 4.12e-18 |
-| day 1 17:00 active | 0.061257 | 0.061257 | 0.061257 | 0.00e+0 | 0.00e+0 | 0.061257 | 7.08e-16 | 7.08e-16 | 7.08e-16 |
-| day 1 17:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 0.00e+0 | 0.00e+0 | 0.937993 | 5.11e-15 | 5.11e-15 | 5.11e-15 |
+| day 1 12:00 resting | 0.000750 | 0.000750 | 0.000750 | -1.11e-16 | -1.11e-16 | 0.000750 | 0.00e+0 | -1.11e-16 | -1.11e-16 |
+| day 1 12:00 active | 0.061257 | 0.061257 | 0.061257 | -6.25e-17 | -6.25e-17 | 0.061257 | -5.07e-15 | -5.13e-15 | -5.13e-15 |
+| day 1 12:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 1.11e-16 | 1.11e-16 | 0.937993 | 5.11e-15 | 5.22e-15 | 5.22e-15 |
+| day 1 17:00 resting | 0.000750 | 0.000750 | 0.000750 | -1.11e-16 | -1.11e-16 | 0.000750 | 0.00e+0 | -1.11e-16 | -1.11e-16 |
+| day 1 17:00 active | 0.061257 | 0.061257 | 0.061257 | -6.25e-17 | -6.25e-17 | 0.061257 | -5.07e-15 | -5.13e-15 | -5.13e-15 |
+| day 1 17:00 fatigued | 0.937993 | 0.937993 | 0.937993 | 1.11e-16 | 1.11e-16 | 0.937993 | 5.11e-15 | 5.22e-15 | 5.22e-15 |
 
-Largest absolute difference over every group, side and compartment at the day-1 block ends: 60 s against 1 s 5.11e-15; 600 s against 1 s 1.22e-14; 3600 s against 1 s 1.22e-14.
+Largest absolute difference over every group, side and compartment at the day-1 block ends: 60 s against 1 s 7.99e-15; 600 s against 1 s 8.10e-15; 3600 s against 1 s 8.10e-15.
 
 ### Largest difference from 60 s, per quantity
 
@@ -256,7 +258,7 @@ Largest absolute difference over every group, side and compartment at the day-1 
 | core temperature (C) | 0.00e+0 | day 1 core temperature (C) | 0.00e+0 | day 1 core temperature (C) |
 | room CO2 peak (ppm) | 7.78e+1 | day 6 room CO2 peak (ppm) | 6.70e+2 | day 7 room CO2 peak (ppm) |
 | Neurology circuit outputs, end of week | 0.00e+0 | neurology.circuits.arousal | 0.00e+0 | neurology.circuits.arousal |
-| Muscular 3CC compartments at the end of each work block, all seven days | 0.00e+0 | day 1 12:00 resting | 0.00e+0 | day 1 12:00 resting |
+| Muscular 3CC compartments at the end of each work block, all seven days | 1.11e-16 | day 1 12:00 resting | 1.11e-16 | day 1 12:00 resting |
 
 ### Wall time per simulated day (ms)
 
@@ -264,20 +266,20 @@ Machine: 16 cores (`os.cpus().length`). The 1 s run covers day 1 only.
 
 | process | 60 s | 600 s | 3600 s | 1 s |
 |---|---|---|---|---|
-| circumstances | 4.1 | 0.7 | 0.4 | 89.2 |
-| room | 12.9 | 2.2 | 0.4 | 572.1 |
-| environment | 12.0 | 1.6 | 0.2 | 526.5 |
-| physiology | 38.1 | 5.6 | 0.8 | 1912.2 |
-| breathing | 11.6 | 1.2 | 0.2 | 511.5 |
-| nutrition | 1.4 | 0.3 | 0.1 | 62.3 |
-| neurology | 82.2 | 9.9 | 1.7 | 4424.1 |
-| muscular | 391.2 | 326.0 | 296.1 | 4462.1 |
-| setup, audit, ledger checks (unwrapped) | 321.0 | 38.4 | 6.7 | 17834.0 |
-| total | 874.6 | 385.9 | 306.7 | 30394.0 |
+| circumstances | 4.0 | 0.6 | 0.3 | 86.7 |
+| room | 13.2 | 1.5 | 0.4 | 541.1 |
+| environment | 12.7 | 1.2 | 0.2 | 492.2 |
+| physiology | 42.1 | 5.0 | 0.6 | 1755.0 |
+| breathing | 11.4 | 0.9 | 0.1 | 479.7 |
+| nutrition | 1.5 | 0.2 | 0.1 | 56.4 |
+| neurology | 91.3 | 8.9 | 1.3 | 4218.0 |
+| muscular | 129.2 | 11.3 | 1.9 | 5787.0 |
+| setup, audit, ledger checks (unwrapped) | 368.6 | 35.4 | 6.3 | 17121.4 |
+| total | 674.0 | 65.0 | 11.3 | 30537.6 |
 
 ### Dominant process by step
 
-- 60 s: muscular is the largest process (45% of total wall time); the unwrapped harness (setup, audit, ledger checks) is 37%
-- 600 s: muscular is the largest process (84% of total wall time); the unwrapped harness (setup, audit, ledger checks) is 10%
-- 3600 s: muscular is the largest process (97% of total wall time); the unwrapped harness (setup, audit, ledger checks) is 2%
-- 1 s: muscular is the largest process (15% of total wall time); the unwrapped harness (setup, audit, ledger checks) is 59%
+- 60 s: muscular is the largest process (19% of total wall time); the unwrapped harness (setup, audit, ledger checks) is 55%
+- 600 s: muscular is the largest process (17% of total wall time); the unwrapped harness (setup, audit, ledger checks) is 54%
+- 3600 s: muscular is the largest process (17% of total wall time); the unwrapped harness (setup, audit, ledger checks) is 56%
+- 1 s: muscular is the largest process (19% of total wall time); the unwrapped harness (setup, audit, ledger checks) is 56%

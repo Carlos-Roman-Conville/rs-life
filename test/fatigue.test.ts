@@ -56,8 +56,9 @@ describe("one schedule drives local and systemic fatigue", () => {
     expect(x.out.activity).toBe(ROWING);
     expect(Math.abs(Number(x.out.fatigue_met_hours) - metOf(SEWING) - metOf(ROWING))).toBeLessThanOrEqual(1e-9);
     expect(x.state.groups.hamstrings.L!.compartments!.fatigued).toBeGreaterThan(0);
-    expect(x.state.groups.hand.L!.compartments).toEqual(
-      stepMuscleFatigue(afterSewing, "hand", muscularActivation(ROWING).groups.hand!, HOUR, 1));
+    const whole = stepMuscleFatigue(afterSewing, "hand", muscularActivation(ROWING).groups.hand!, HOUR, 1)!;
+    for (const key of ['resting', 'active', 'fatigued'] as const)
+      expect(Math.abs(x.state.groups.hand.L!.compartments![key] - whole[key])).toBeLessThanOrEqual(1e-12);
   });
 
   it.each([1, 0.5, 0])("recovers every fatigued group in an hour of bare-MET rest at R x %s", recoveryMultiplier => {
