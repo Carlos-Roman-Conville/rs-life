@@ -45,8 +45,10 @@ function schedule(watch: boolean): ScheduleEntry[] {
     ...[8, 9, 10, 11, 13, 14, 15, 16].map((h, i) => ({ fromH: h, toH: h + 1, activity: work[i % work.length]! })),
   ];
 }
-/** Optional checkpoint processes run after the week physiology and before its audit. */
-export function runHumanWeek(extend?: (w: World, body: Component, room: Component, sch: Scheduler) => void) {
+/** Optional checkpoint processes run after the week physiology and before its audit. `stepS` and `days` default to the
+ * recorded checkpoint (60 s, seven days); other values are for the step-convergence measurement (2819). */
+export function runHumanWeek(extend?: (w: World, body: Component, room: Component, sch: Scheduler) => void,
+  stepS: number = FIXTURE.stepS, days: number = FIXTURE.days) {
   const started = performance.now(), w = new World(defaultRegistry()), sch = new Scheduler();
   const body = component('body', 'body', FIXTURE.massKg, 37);
   body.props = { height_cm: 175, age_y: 30, male: 1, fat_kg: FIXTURE.fatKg };
@@ -88,7 +90,7 @@ export function runHumanWeek(extend?: (w: World, body: Component, room: Componen
   let peak = 0, cursor = 0, pendingKcal = 0;
   let energyIn = 0, energyOut = 0, stored = 0, waterIn = 0, waterOut = 0, metabolicWater = 0;
   const waterOutBy: Record<string, number> = {};
-  const days: { day: number; kcalIn: number; kcalOut: number; storedKcal: number; massKg: number;
+  const daily: { day: number; kcalIn: number; kcalOut: number; storedKcal: number; massKg: number;
     waterInKg: number; metabolicWaterKg: number; waterOutKg: number; waterOutByKg: Record<string, number>; waterKg: number; waterDeficitKg: number;
     roomCo2PeakPpm: number; outputs: ReturnType<typeof bodyOutputs>; circuits: Record<string, number | string | null> }[] = [];
   sch.add({ name: 'audit', every: 1, step(world, dt) {
@@ -118,7 +120,7 @@ export function runHumanWeek(extend?: (w: World, body: Component, room: Componen
     }
     peak = Math.max(peak, roomGasFraction(world, room, 'co2') * 1e6);
     if ((world.t + dt) % 86400 === 0) {
-      days.push({ day: days.length + 1, kcalIn: energyIn, kcalOut: energyOut, storedKcal: stored, massKg: body.mass,
+      daily.push({ day: daily.length + 1, kcalIn: energyIn, kcalOut: energyOut, storedKcal: stored, massKg: body.mass,
         waterInKg: waterIn, metabolicWaterKg: metabolicWater, waterOutKg: waterOut, waterOutByKg: { ...waterOutBy },
         waterKg: world.registry.contentMass(body, 'water'),
         waterDeficitKg: body.props.waterDeficitKg, roomCo2PeakPpm: peak, outputs: { ...out },
@@ -127,9 +129,9 @@ export function runHumanWeek(extend?: (w: World, body: Component, room: Componen
       for (const k of Object.keys(waterOutBy)) delete waterOutBy[k];
     }
   } });
-  sch.run(w, FIXTURE.days * 86400, FIXTURE.stepS);
+  sch.run(w, days * 86400, stepS);
   if (w.trace.failed().length) throw new Error(w.trace.notes.filter(n => n.text.startsWith('CONSERVATION FAILED')).slice(0, 3).map(n => n.text).join('\n'));
-  return { w, body, room, days, elapsedMs: performance.now() - started, order: sch.processes.map(p => p.name) };
+  return { w, body, room, days: daily, elapsedMs: performance.now() - started, order: sch.processes.map(p => p.name) };
 }
 
 // Node's direct-entry flag avoids running the week when imported by the test.
