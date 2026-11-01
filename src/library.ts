@@ -16,6 +16,7 @@ import muscular from "../data/library/muscular.json" with { type: "json" };
 import neurology from "../data/library/neurology.json" with { type: "json" };
 import nutrition from "../data/library/nutrition.json" with { type: "json" };
 import physiology from "../data/library/physiology.json" with { type: "json" };
+import plants from "../data/library/plants.json" with { type: "json" };
 import population from "../data/library/population.json" with { type: "json" };
 import science from "../data/library/science.json" with { type: "json" };
 import sources from "../data/library/sources.json" with { type: "json" };
@@ -29,7 +30,7 @@ type RawFile = Record<string, RawTable | string>;
 
 const FILES: Record<string, RawFile> = {
   anatomy, atmosphere, chemistry, circulation, ecology, environment, equipment, gasdynamics, medicine, muscular,
-  neurology, nutrition, physiology, population, science, sources,
+  neurology, nutrition, physiology, plants, population, science, sources,
 } as unknown as Record<string, RawFile>;
 
 const cache = new Map<string, LibraryRow[]>();

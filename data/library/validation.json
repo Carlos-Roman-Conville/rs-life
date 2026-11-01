@@ -299,5 +299,13 @@
       ["validation.scurvy_consequences.stage-late-features", "Late-stage features of scurvy", null, null, null, "none found (qualitative)", "Francescone and Levitt, Cutis 76(4); Wikipedia Scurvy article", "Francescone: fatigue and malaise early, myalgia as deficiency progresses, and 'late stages of scurvy are characterized by neuropathy, edema, oliguria, syncope, leukopenia, and intracerebral hemorrhage'. Wikipedia: poor wound healing 'as scurvy worsens', then death from infection or bleeding. Neither places gum disease, tooth loss or wound reopening on a named day or level.", "https://blogs.the-hospitalist.org/content/scurvy-masquerading-leukocytoclastic-vasculitis-case-report-and-review-literature", "open"],
       ["validation.scurvy_consequences.onset-in-camps", "Time in camp before clinical scurvy outbreaks among refugees on ration shortfalls", null, 90, 120, "days", "Ethiopian refugee camps, Desenclos et al. 1989, Bull WHO 67(3):309-316: 'from 3 to 4 months after their arrival'", "Low 3 months and High 4 months as days (approximate). Risk 'increased significantly with the length of time that refugees had been in the camps'. Prevalence in six camps 13.6 to 44 percent. Abstract only; no signs by stage and no deaths.", "https://pmc.ncbi.nlm.nih.gov/articles/PMC2491254", "open"]
     ]
+  },
+  "plants_validation": {
+    "title": "Plant species validation studies (reference data for the Reality keeper; not species profile sources)",
+    "kind": "reference",
+    "conf": "low",
+    "source": "2807 scaffold; research units add rows. URLs here must never appear as sources on the matching species table.",
+    "columns": ["id", "Quantity", "Value", "Low", "High", "Unit", "Population or conditions", "Note", "URL", "source"],
+    "rows": []
   }
 }
