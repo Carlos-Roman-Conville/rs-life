@@ -1,5 +1,7 @@
 # @rex/realism: the realism engine (first operational build, 2026-10-29)
 
+The engine is being split into Reality (the physical world) and Life (organisms); the plan is SPLIT.md (Rex, 2026-10-31).
+
 The shared simulation engine the games build on: a **registry** of substances, materials and components; a typed
 **connection graph**; a **conservation and process engine** that moves mass and energy by real formulas and records
 every transfer; a **scheduler** with fast and slow steps; and a **trace** that checks conservation every step so an
