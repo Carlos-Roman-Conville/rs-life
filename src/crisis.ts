@@ -4,7 +4,7 @@
  * the row that justifies it in `source`, the host decides, and `declareDeath` refuses a body with no crisis in the trace.
  */
 import type { World } from "./world.ts";
-import { Trace, type TraceRecord } from "./trace.ts";
+import type { TraceRecord } from "./trace.ts";
 
 export interface DeathRecord {
   readonly body: string;
@@ -38,16 +38,6 @@ export interface Crisis extends TraceRecord {
 }
 
 export interface CrisisDetail { source: string; risk?: number | null; day?: number; organ?: string; function?: number | null; remainingCapacity?: number }
-
-declare module "./trace.ts" {
-  interface Trace {
-    /** @deprecated use allCrises / carryRecords (2777) */
-    readonly crises: Crisis[];
-  }
-}
-
-/** @deprecated use allCrises / carryRecords (2777) */
-Object.defineProperty(Trace.prototype, "crises", { get() { return this.records }, configurable: true });
 
 /** The crisis view of the world's audit records, retaining the original record objects. */
 export const allCrises = (w: World): Crisis[] => w.trace.records.filter((c): c is Crisis => c.kind === "crisis");

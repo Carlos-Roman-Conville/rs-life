@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { addCrisis, allCrises, carryRecords, causeOfDeath, crisesOf, deathsOf, recordCrisis, trackCrisis, type Crisis } from "../src/crisis.ts";
 import { defaultRegistry } from "../src/registry.ts";
-import { Trace } from "../src/trace.ts";
 import { World } from "../src/world.ts";
 
 describe("crisis views over generic records (2777)", () => {
@@ -40,18 +39,5 @@ describe("crisis views over generic records (2777)", () => {
     expect(next.trace.records[2]).toBe(other);
     expect(allCrises(next)[0]).toBe(c);
     expect(previous.trace.records).toEqual([c, other]);
-  });
-
-  it("keeps the deprecated prototype alias usable for host trace renewal", () => {
-    const previous = new Trace(), next = new Trace();
-    previous.records.push({ kind: "inspection", details: { accepted: true } });
-    // Exercise the legacy property dynamically; ordinary consumers use the new helpers.
-    const key = "crises";
-    next[key].push(...previous[key]);
-    expect(next[key]).toBe(next.records);
-    expect(next.records).toEqual(previous.records);
-    expect(next.records[0]).toBe(previous.records[0]);
-    expect(Object.hasOwn(next, key)).toBe(false);
-    expect(Object.getOwnPropertyDescriptor(Trace.prototype, key)).toMatchObject({ configurable: true, enumerable: false });
   });
 });
