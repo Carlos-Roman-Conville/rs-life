@@ -93,17 +93,18 @@
     ]
   },
   "crisis_floors": {
-    "title": "Organ crisis floors (2633)",
+    "title": "Organ and tissue crisis floors (2633, 2787)",
     "kind": "model",
     "conf": "low",
-    "source": "Game design of 2026-10-29 as stated in gears/anatomy-crisis-floors.md, not independent clinical evidence. Level 5; specification and validation gap recorded there.",
+    "source": "Organ floors: game design of 2026-10-29 as stated in gears/anatomy-crisis-floors.md, not independent clinical evidence. Collagen floor: validation.scurvy_consequences.death-cause-modern supports untreated fatality, not a numeric threshold. Level 5; specification and validation gap recorded there.",
     "columns": ["id", "Organ", "Floor", "Level", "Source", "source"],
     "rows": [
       ["anatomy.crisis_floors.brain", "brain", 0.2, 5, "ANATOMY.md section 3a", "open"],
       ["anatomy.crisis_floors.heart", "heart", 0.2, 5, "ANATOMY.md section 3a", "open"],
       ["anatomy.crisis_floors.lungs", "lungs", 0.2, 5, "ANATOMY.md section 3a", "open"],
       ["anatomy.crisis_floors.liver", "liver", 0.1, 5, "ANATOMY.md section 3a", "open"],
-      ["anatomy.crisis_floors.kidneys", "kidneys", 0.1, 5, "ANATOMY.md section 3a", "open"]
+      ["anatomy.crisis_floors.kidneys", "kidneys", 0.1, 5, "ANATOMY.md section 3a", "open"],
+      ["anatomy.crisis_floors.connective-tissue-collagen", "connective-tissue-collagen", 0, 5, "validation.scurvy_consequences.death-cause-modern: untreated, scurvy is inevitably fatal. Zero is the bottom of the integrity scale, chosen because no source gives a lower level; hypothesis, not a measured fatality threshold (2787).", "open"]
     ]
   },
   "respiratory": {

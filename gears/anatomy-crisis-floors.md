@@ -20,3 +20,19 @@ compare failure and recovery in independent longitudinal clinical observations
 across those endpoints. Estimate thresholds and uncertainty separately for each
 organ before replacing these hypotheses. A common dimensionless function scale
 has not been clinically calibrated.
+
+Collagen tissue (2787): open a crisis when known integrity reaches its Floor 0;
+resolve the condition when integrity rises above the floor. The numeric home is
+`anatomy.crisis_floors.connective-tissue-collagen` in the same table. Its cause is
+`anatomy.tissues.connective-tissue-collagen`, its source is the floor row, and its
+risk is null: no death is rolled, and the host decides through `declareDeath`.
+
+Source: `validation.scurvy_consequences.death-cause-modern` (Pimentel 2003;
+Francescone and Levitt) states that untreated scurvy is fatal. Evidence level
+**5 (hypothesis)** for the floor: zero is the bottom of the integrity scale,
+chosen because no source gives a lower level, not a measured fatality threshold.
+Validation candidate: compare the current depletion law's day-102 crisis against
+independently staged clinical progression and treatment response, and historical
+voyage accounts with known food withdrawal. Anson mortality is second-hand and
+not all attributed to scurvy; this comparison is not a fit. See the (2787) report
+in `flags/medicine.md` for timing and reference limitations.

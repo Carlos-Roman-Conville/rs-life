@@ -23,8 +23,22 @@ const collagenImpairedAt = 1 - Number(/integrity -([\d.]+)/.exec(String(
   libraryRow("anatomy", "tissues", COLLAGEN)["Integrity falls with"]))![1]);
 const collagenImpaired = (integrity: number | undefined) => integrity !== undefined && integrity <= collagenImpairedAt;
 
+type CollagenThreshold = "reopen-healed-at-integrity" | "teeth-lost-at-integrity" | "sudden-death-on-exertion-at-integrity";
+/** Unsourced thresholds stay null. Late-stage signs must follow the impaired-collagen sign. */
+export function collagenConsequenceThreshold(id: CollagenThreshold): number | null {
+  const row = libraryRow("medicine", "collagen_consequences", `medicine.collagen_consequences.${id}`);
+  const value = row.Value;
+  if (value === null) return null;
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value >= collagenImpairedAt) {
+    const error = new Error(`medicine: ${row.id} must be a nonnegative integrity below collagenImpairedAt (${collagenImpairedAt})`);
+    error.name = "CollagenConsequenceOrderError";
+    throw error;
+  }
+  return value;
+}
+
 /** The rows of a medicine table by stable id. */
-export const medicineRules = (table: "diseases" | "wounds" | "pain" | "treatments" | "healing" | "immunity" | "exposure") =>
+export const medicineRules = (table: "diseases" | "wounds" | "pain" | "treatments" | "healing" | "immunity" | "exposure" | "collagen_consequences") =>
   Object.fromEntries(libraryTable("medicine", table).map(r => [String(r.id), r]));
 export const medicineColumns = (table: string) => libraryColumns("medicine", table);
 
@@ -169,11 +183,17 @@ export interface MedicineState {
   airActive: Record<string, number>;
   /** Latest anatomy state; scurvy is a diagnosis over this state, with no course clock. */
   collagenIntegrity?: number;
+  /** Crossing latch, not a clock; unknown integrity cannot re-arm it. */
+  collagenReopeningActive?: boolean;
+  /** Irreversible consequence, retained after collagen recovery. */
+  teethLost?: boolean;
   /** Used for a wound's pain when the host does not name the cause. */
-  options: { riskAt: number };
+  options: { riskAt: number; dentate?: boolean };
 }
 export interface MedicineOptions {
   seed?: number;
+  /** Whether the body has teeth; omitted means the host has not specified it. */
+  dentate?: boolean;
   /** Where in a row's risk range this body's cases fall (0 = the low end, 1 = the high end). Default the middle. */
   riskAt?: number;
 }
@@ -181,7 +201,7 @@ export function createMedicine(body: string, options: MedicineOptions = {}): Med
   const riskAt = options.riskAt ?? 0.5;
   if (!(riskAt >= 0 && riskAt <= 1)) throw new Error("medicine: riskAt must be in [0, 1]");
   return { body, rand: rng(options.seed ?? 1), day: 0, elapsedSeconds: 0, sick: [], wounds: [], immunity: {}, lastingHarm: {},
-    crises: [], airActive: {}, options: { riskAt } };
+    crises: [], airActive: {}, options: { riskAt, dentate: options.dentate } };
 }
 
 const between = (rand: () => number, r: Range) => r.lo + Math.floor(rand() * (Math.round(r.hi) - Math.round(r.lo) + 1));
@@ -406,6 +426,8 @@ export function inflictWound(s: MedicineState, kind: string, o: WoundOptions = {
 // ---------------------------------------------------------------- healing
 
 export interface HealingFactors {
+  /** Host-observed exertion; also pass these factors to anatomyProcess. */
+  exerting?: boolean;
   collagenIntegrity?: number; proteinGKgDay?: number; energyBalanceKcalDay?: number; ageYears?: number;
   rest?: boolean; workingPart?: boolean; dressedDaily?: boolean; sleepDebtH?: number;
 }
@@ -443,12 +465,26 @@ export function worldHealingFactors(w: World, body: string): HealingFactors {
 /** Advance whole days: wounds heal at 1/multiplier of a day a day (paused while infected, reopening at the working-part
  * chance), diseases move through incubation and course, and a due death risk opens a crisis (the host decides). */
 export function advanceDays(s: MedicineState, days: number, factors: HealingFactors = {}) {
+  const reopening = collagenConsequenceThreshold("reopen-healed-at-integrity");
+  const toothLoss = collagenConsequenceThreshold("teeth-lost-at-integrity");
   s.collagenIntegrity = factors.collagenIntegrity;
+  const reopened = new Set<Wound>();
+  if (reopening !== null && s.collagenIntegrity !== undefined) {
+    const active = s.collagenIntegrity <= reopening;
+    if (active && !s.collagenReopeningActive) for (const wound of s.wounds) if (wound.healed) {
+      wound.healed = false; wound.progressDays = 0; wound.reopened++;
+      reopened.add(wound);
+    }
+    s.collagenReopeningActive = active;
+  }
+  if (toothLoss !== null && s.options.dentate === true && s.collagenIntegrity !== undefined && s.collagenIntegrity <= toothLoss)
+    s.teethLost = true;
   for (let i = 0; i < days; i++) {
     s.day++;
     s.elapsedSeconds += DAY;
     const reopen = Number(/reopen chance (\d+)%\/day/.exec(String(healRow("working-the-wounded-part")["Multiplier on healing time"]))![1]) / 100;
     for (const w of s.wounds) {
+      if (i === 0 && reopened.has(w)) continue;
       if (w.healed || w.infected) continue;
       const m = healingMultiplier({ ...factors, rest: w.resting || factors.rest, workingPart: w.workingPart || factors.workingPart });
       if (w.workingPart && s.rand() < reopen) { w.reopened++; w.progressDays = 0; continue; }
@@ -555,6 +591,9 @@ export function medicineOutputs(s: MedicineState) {
   const pain = painLevel(s);
   for (const r of libraryTable("medicine", "pain")) o[String(r.id)] = r.id === pain.band ? 1 : 0;
   o["medicine.pain"] = pain.level;
+  o["medicine.signs.gum_bleeding"] = s.options.dentate === undefined ? null
+    : Number(s.options.dentate && collagenImpaired(s.collagenIntegrity));
+  o["medicine.signs.teeth_lost"] = Number(s.teethLost === true);
   o["medicine.sick_count"] = s.sick.filter(x => x.id !== "scurvy").length + Number(collagenImpaired(s.collagenIntegrity));
   o["medicine.crises"] = s.crises.length;
   return o;
@@ -566,7 +605,6 @@ export function medicineProcess(s: MedicineState, factors: HealingFactors = {}, 
   return { name: "medicine", every, step(w, dt) {
     if (!Number.isFinite(dt) || dt < 0) throw new Error("medicine: invalid time");
     const currentFactors = { ...worldHealingFactors(w, s.body), ...factors };
-    s.collagenIntegrity = currentFactors.collagenIntegrity; // Diagnosis updates even at dt=0.
     flushMedicineCrises(w, s);
     for (const x of s.wounds) if (!x.healed && x.rateMlMin !== null) bleed(w, s.body, x.rateMlMin, dt, x.clotting, x.bound);
     const endSeconds = s.elapsedSeconds + dt;
@@ -574,7 +612,7 @@ export function medicineProcess(s: MedicineState, factors: HealingFactors = {}, 
     if (days) {
       s.elapsedSeconds = Math.floor(s.elapsedSeconds / DAY) * DAY;
       advanceDays(s, days, currentFactors);
-    }
+    } else advanceDays(s, 0, currentFactors); // Signs and crossings also update on input-change events.
     s.elapsedSeconds = endSeconds;
     flushMedicineCrises(w, s);
     const out = bodyOutputs(w.registry.component(s.body));

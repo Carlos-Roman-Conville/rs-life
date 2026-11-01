@@ -1,16 +1,19 @@
 import { airContents, breathingProcess, gasThresholds, gasTolerances } from "../src/atmosphere.ts";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { defaultRegistry } from "../src/registry.ts";
 import { World } from "../src/world.ts";
 import { Scheduler } from "../src/scheduler.ts";
 import { bodyOutputs } from "../src/physiology.ts";
 import { initialiseCirculation } from "../src/circulation.ts";
 import { libraryRow, libraryTable } from "../src/library.ts";
+import * as library from "../src/library.ts";
+import { causeOfDeath, declareDeath } from "../src/crisis.ts";
 import validation from "../data/library/validation.json";
 import { anatomyProcess, assembleBody } from "../src/anatomy.ts";
 import { eat, nutritionProcess, poolLevel, stockPools } from "../src/nutrition.ts";
 import { advanceDays, airConditions, createMedicine, daysRange, diseaseCourse, expose, healingMultiplier, immunityRule, inflictWound,
-  medicineOutputs, medicineProcess, painLevel, resolveCrisis, riskRange, treat, treatmentEfficacy, worldHealingFactors } from "../src/medicine.ts";
+  medicineOutputs, medicineProcess, painLevel, resolveCrisis, riskRange, treat, treatmentEfficacy, worldHealingFactors,
+  type HealingFactors } from "../src/medicine.ts";
 
 const N = 1000;
 /** Four binomial standard errors around p at N runs: the sampling error of a seeded frequency. */
@@ -588,4 +591,165 @@ it("validation (2727): exposure references agree where comparable and identify t
   expect(co2).toBeGreaterThan(Number(ref("co2-niosh-rel-twa")[2]));
   expect(co2).toBeGreaterThan(Number(ref("co2-osha-pel")[2]));
   expect(co2).toBeLessThan(Number(ref("co2-idlh")[2]));
+});
+
+describe("scurvy consequences (2787)", () => {
+  const DAY = 86400, collagenId = "anatomy.tissues.connective-tissue-collagen";
+  const prefix = "medicine.collagen_consequences.";
+  function fixture(dentate?: boolean, factors: HealingFactors = {}) {
+    const w = new World(defaultRegistry());
+    const b = w.registry.addComponent({ id: "body", kind: "body", material: "flesh", mass: 70, temperatureC: 37,
+      contents: [], ports: [], condition: { capability: 1, control: 1, accuracy: 1 }, props: { male: 1 } });
+    stockPools(w, b.id);
+    const a = assembleBody(w, b.id), anatomy = anatomyProcess(a, factors), s = createMedicine(b.id, { dentate });
+    const medicine = medicineProcess(s, factors), nutrition = nutritionProcess(b.id, { dayStartH: 0 });
+    const integrity = () => a.tissues[collagenId].integrity;
+    const step = (treated = false) => {
+      if (treated) eat(w, b.id, "limes", 0.2);
+      nutrition.step(w, DAY);
+      w.t += DAY;
+      anatomy.step(w, DAY); medicine.step(w, DAY);
+    };
+    const depleteTo = (threshold: number) => {
+      for (let day = 0; day < 365 && integrity() > threshold; day++) step();
+      expect(integrity()).toBeLessThanOrEqual(threshold);
+    };
+    return { w, b, a, s, anatomy, medicine, step, integrity, depleteTo };
+  }
+  // Test-only library override: never persist invented thresholds or set tissue integrity.
+  function withThresholds(values: Record<string, number>, run: () => void) {
+    const original = library.libraryRow;
+    const spy = vi.spyOn(library, "libraryRow").mockImplementation((file, table, id) => {
+      const row = original(file, table, id);
+      const value = values[id.replace(prefix, "")];
+      return file === "medicine" && table === "collagen_consequences" && value !== undefined ? { ...row, Value: value } : row;
+    });
+    try { run(); } finally { spy.mockRestore(); }
+  }
+
+  it("gum bleeding follows impaired collagen, recovery and host dentition", () => {
+    for (const dentate of [true, false, undefined]) {
+      const x = fixture(dentate);
+      expect(medicineOutputs(x.s)["medicine.signs.gum_bleeding"]).toBe(dentate === undefined ? null : 0);
+      x.depleteTo(0.98);
+      expect(medicineOutputs(x.s)["medicine.signs.gum_bleeding"]).toBe(dentate === undefined ? null : Number(dentate));
+      for (let day = 0; day < 14; day++) x.step(true);
+      expect(x.integrity()).toBe(1);
+      expect(medicineOutputs(x.s)["medicine.signs.gum_bleeding"]).toBe(dentate === undefined ? null : 0);
+    }
+  });
+
+  it("null rows leave healed wounds and teeth intact and exertion inactive even at zero integrity", () => {
+    expect(libraryTable("medicine", "collagen_consequences").map(row => row.Value)).toEqual([null, null, null, null]);
+    const x = fixture(true, { exerting: true });
+    const wound = inflictWound(x.s, "cut-incised", { infected: false });
+    x.depleteTo(0);
+    for (let day = 0; day < 3; day++) x.step();
+    expect(wound.healed).toBe(true); expect(wound.reopened).toBe(0);
+    expect(medicineOutputs(x.s)["medicine.signs.teeth_lost"]).toBe(0);
+    expect(x.w.trace.crises.filter(c => c.cause === `${collagenId}:exertion`)).toEqual([]);
+  });
+
+  it("test-only thresholds reopen healed wounds once per crossing and preserve tooth loss after recovery", () => {
+    withThresholds({ "reopen-healed-at-integrity": 0.96, "teeth-lost-at-integrity": 0.96 }, () => {
+      const x = fixture(true), wound = inflictWound(x.s, "cut-incised", { infected: false });
+      const second = inflictWound(x.s, "cut-incised", { infected: false });
+      x.depleteTo(0.98);
+      expect(wound.healed).toBe(true); expect(second.healed).toBe(true);
+      expect(medicineOutputs(x.s)["medicine.signs.gum_bleeding"]).toBe(1);
+      expect(medicineOutputs(x.s)["medicine.signs.teeth_lost"]).toBe(0);
+      x.step();
+      for (const w of [wound, second]) {
+        expect(w.healed).toBe(false); expect(w.progressDays).toBe(0); expect(w.reopened).toBe(1);
+      }
+      expect(medicineOutputs(x.s)["medicine.signs.teeth_lost"]).toBe(1);
+      expect(medicineOutputs(x.s)["medicine.signs.gum_bleeding"]).toBe(1); // Loss does not specify how many teeth remain.
+      // Healing below the floor must not trigger another reopening. Unknown input does not re-arm the latch.
+      advanceDays(x.s, 0);
+      for (let day = 0; day < 30; day++) x.step();
+      expect(wound.healed).toBe(true); expect(wound.reopened).toBe(1);
+      for (let day = 0; day < 800 && x.integrity() < 1; day++) x.step(true);
+      expect(x.integrity()).toBe(1);
+      expect(medicineOutputs(x.s)["medicine.signs.teeth_lost"]).toBe(1);
+      x.depleteTo(0.96);
+      expect(wound.reopened).toBe(2); expect(second.reopened).toBe(2);
+      x.step(); expect(wound.reopened).toBe(2);
+      for (const dentate of [false, undefined]) {
+        const other = fixture(dentate); other.depleteTo(0.96);
+        expect(medicineOutputs(other.s)["medicine.signs.teeth_lost"]).toBe(0);
+      }
+    });
+  });
+
+  it("test-only exertion threshold opens one crisis and resolves when exertion or low integrity ends", () => {
+    withThresholds({ "sudden-death-on-exertion-at-integrity": 0.96 }, () => {
+      const factors: HealingFactors = { exerting: true }, x = fixture(true, factors);
+      x.depleteTo(0.98);
+      expect(x.a.crises).toEqual([]);
+      factors.exerting = false; x.step();
+      expect(x.a.crises).toEqual([]);
+      factors.exerting = true; x.anatomy.step(x.w, 0);
+      const c = x.a.crises[0];
+      expect(c).toMatchObject({ cause: `${collagenId}:exertion`, risk: null });
+      expect(c.source).toContain(`${prefix}sudden-death-on-exertion-at-integrity`);
+      expect(x.w.trace.crises).toContain(c);
+      x.anatomy.step(x.w, 0); expect(x.a.crises).toHaveLength(1);
+      factors.exerting = false; x.anatomy.step(x.w, 0);
+      expect(c.resolvedAt).toBe(x.w.t);
+      factors.exerting = true; x.anatomy.step(x.w, 0);
+      expect(x.a.crises).toHaveLength(2);
+      const recovered = x.a.crises[1]; x.step(true);
+      expect(x.integrity()).toBeGreaterThan(0.96);
+      expect(recovered.resolvedAt).toBe(x.w.t);
+      expect(causeOfDeath(x.w, x.b.id)).toBeUndefined();
+    });
+  });
+
+  it("rejects each late-stage threshold at or above gum impairment with a named error", () => {
+    for (const id of ["reopen-healed-at-integrity", "teeth-lost-at-integrity", "sudden-death-on-exertion-at-integrity"]) {
+      for (const value of [0.98, 1]) withThresholds({ [id]: value }, () => {
+        const x = fixture(true);
+        const run = () => id.startsWith("sudden") ? x.anatomy.step(x.w, 0) : advanceDays(x.s, 0);
+        expect(run).toThrow(expect.objectContaining({ name: "CollagenConsequenceOrderError", message: expect.stringContaining(id) }));
+      });
+    }
+  });
+
+  it("validation (2787): untreated scurvy opens a crisis and vitamin C treatment resolves it", () => {
+    // Pimentel / Francescone: untreated fatality and response even in advanced disease.
+    // No source supplies a day, integrity cutoff or rate; timing below is reported, never fitted.
+    const reference = validation.scurvy_consequences.rows.find(row => row[0] === "validation.scurvy_consequences.death-cause-modern")!;
+    expect(reference[validation.scurvy_consequences.columns.indexOf("Value")]).toBeNull();
+    const x = fixture(true);
+    let firstLossDay: number | undefined;
+    for (let day = 1; day <= 365 && x.integrity() > 0; day++) {
+      x.step();
+      if (x.integrity() < 1) firstLossDay ??= day;
+      if (x.integrity() > 0) expect(x.a.crises.filter(c => c.cause === collagenId)).toEqual([]);
+    }
+    expect(x.integrity()).toBe(0);
+    const c = x.a.crises.find(c => c.cause === collagenId)!;
+    expect(c).toMatchObject({ cause: collagenId, risk: null, function: 0 });
+    expect(c.source).toContain("anatomy.crisis_floors.connective-tissue-collagen");
+    console.info(`(2787) timing comparison: first collagen loss day ${firstLossDay}; integrity-0 crisis day ${c.startedAt / DAY}; ${c.startedAt / DAY - firstLossDay!} days after first loss`);
+    for (let day = 0; day < 3; day++) x.step();
+    expect(x.a.crises.filter(c => c.cause === collagenId)).toHaveLength(1);
+    expect(c.durationSeconds).toBe(x.w.t - c.startedAt);
+    expect(c.resolvedAt).toBeUndefined();
+    expect(causeOfDeath(x.w, x.b.id)).toBeUndefined(); expect(x.b.props.dead).toBeUndefined();
+    for (let day = 0; day < 30 && x.integrity() === 0; day++) x.step(true);
+    expect(x.integrity()).toBeGreaterThan(0);
+    expect(c.resolvedAt).toBe(x.w.t);
+    expect(causeOfDeath(x.w, x.b.id)).toBeUndefined();
+  });
+
+  it("only host-declared death records the collagen crisis cause in the death ledger", () => {
+    const x = fixture(true); x.depleteTo(0);
+    expect(causeOfDeath(x.w, x.b.id)).toBeUndefined();
+    const c = x.a.crises.find(c => c.cause === collagenId)!;
+    const death = declareDeath(x.w, x.b.id, c.cause);
+    expect(causeOfDeath(x.w, x.b.id)).toBe(death);
+    expect(death).toMatchObject({ cause: collagenId, source: c.source, crisisStartedAt: c.startedAt });
+    expect(c.resolved).toBe("died"); expect(x.b.props.dead).toBe(1);
+  });
 });

@@ -12,6 +12,7 @@ import type { Process } from "./scheduler.ts";
 import type { World } from "./world.ts";
 import { crisesOf, trackCrisis, type Crisis } from "./crisis.ts";
 import { bodyTrainingFactor } from "./muscular.ts";
+import { collagenConsequenceThreshold, type HealingFactors } from "./medicine.ts";
 
 export type AnatomyTable = "organs" | "tissues" | "damage_function" | "timescales" | "species";
 export const anatomyRules = (table: AnatomyTable) => Object.fromEntries(libraryTable("anatomy", table).map(r => [String(r.id), r]));
@@ -170,12 +171,13 @@ function crisis(w: World, a: BodyAssembly, id: string, active: boolean, value: n
 /** Run after circulation/breathing and on input-change events (dt=0 supported).
  * Daily damage uses only explicit insults. Repair needs an explicit nutrition gate.
  */
-export function anatomyProcess(a: BodyAssembly): Process {
+export function anatomyProcess(a: BodyAssembly, factors: HealingFactors = {}): Process {
   const repair = String(rule("damage_function", "repair")["Formula or statement"]);
   const rates: Record<string, number> = { liver: number(repair, /liver ([\d.]+)/), skin: number(repair, /lining ([\d.]+)/),
     intestines: number(repair, /lining ([\d.]+)/), heart: number(repair, /nerves ([\d.]+)/), brain: number(repair, /nerves ([\d.]+)/), kidneys: number(repair, /kidney ([\d.]+)/) };
   return { name: "anatomy", every: 1, step(w, dt) {
     if (!Number.isFinite(dt) || dt < 0) throw new Error("anatomy: invalid time");
+    const exertionFloor = collagenConsequenceThreshold("sudden-death-on-exertion-at-integrity");
     const out = bodyOutputs(w.registry.component(a.body)), vessels = w.registry.component(`${a.body}:vessels`);
     const daily = Math.floor((a.elapsedSeconds + dt) / 86400) - Math.floor(a.elapsedSeconds / 86400);
     a.elapsedSeconds += dt;
@@ -196,7 +198,13 @@ export function anatomyProcess(a: BodyAssembly): Process {
     for (const [id, tissue] of Object.entries(a.tissues)) {
       out[id] = fraction(tissue.integrity, id);
       bodyOutputs(w.registry.component(tissue.component))[id] = tissue.integrity;
+      const floor = floors.get(id.replace(/^anatomy\.tissues\./, ""));
+      if (floor) crisis(w, a, id, tissue.integrity <= Number(floor.Floor), tissue.integrity, tissue.integrity,
+        `${floor.id}: ${floor.Source}; level ${floor.Level} hypothesis; gears/anatomy-crisis-floors.md`);
     }
+    crisis(w, a, `${collagen.row.id}:exertion`, exertionFloor !== null && collagen.integrity <= exertionFloor && factors.exerting === true,
+      collagen.integrity, collagen.integrity,
+      "medicine.collagen_consequences.sudden-death-on-exertion-at-integrity; validation.scurvy_consequences.death-sudden-lind");
     const atRest = out["circulation.bleeding.i"] === 1 || out["circulation.bleeding.i"] === undefined;
     for (const [id, s] of Object.entries(a.organs)) {
       fraction(s.damage, "damage"); fraction(s.insult, "insult"); fraction(s.resistance, "resistance");

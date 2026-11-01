@@ -105,6 +105,19 @@
       ["medicine.healing.sleep-debt-over-24-h", "Sleep debt over 24 h", "x1.2", "PHYSIOLOGY.md", "proposed", "open"]
     ]
   },
+  "collagen_consequences": {
+    "title": "Consequences of impaired collagen (2787)",
+    "kind": "model",
+    "conf": "low",
+    "source": "Qualitative evidence in validation.scurvy_consequences; no source gives an integrity threshold, rate or infection multiplier. Null values disable the corresponding paths. See flags/medicine.md (2787).",
+    "columns": ["id", "Consequence", "Value", "Note", "Mark", "source"],
+    "rows": [
+      ["medicine.collagen_consequences.reopen-healed-at-integrity", "Reopen healed wounds once per downward crossing", null, "Late-stage sign following bleeding gums (Lind, late stage); threshold must be below the impaired-collagen level. No level or rate supplied. validation.scurvy_consequences.reopening-healed-ulcers-lind; reopening-early-case-lind; reopening-mechanism-modern", "unsourced; null (2787)", "open"],
+      ["medicine.collagen_consequences.teeth-lost-at-integrity", "Irreversible tooth loss in a dentate body", null, "Late-stage sign following bleeding gums (Lind, late stage); threshold must be below the impaired-collagen level. No level supplied. validation.scurvy_consequences.tooth-loss-lind; tooth-loss-modern", "unsourced; null (2787)", "open"],
+      ["medicine.collagen_consequences.infection-susceptibility-when-impaired", "Infection susceptibility with impaired collagen", null, "No susceptibility multiplier or rate supplied; not read by the engine. validation.scurvy_consequences.death-cause-modern", "unsourced; null (2787)", "open"],
+      ["medicine.collagen_consequences.sudden-death-on-exertion-at-integrity", "Crisis during host-observed exertion", null, "Late-stage sign following bleeding gums (Lind, late stage); threshold must be below the impaired-collagen level. No stage or exertion level supplied. validation.scurvy_consequences.death-sudden-lind (level 3 historical observation)", "unsourced; null (2787)", "open"]
+    ]
+  },
   "immunity": {
     "title": "Immunity and resistance",
     "kind": "science",

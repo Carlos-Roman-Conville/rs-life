@@ -272,12 +272,14 @@ describe("cause categories and evidence (2633)", () => {
 
   it("reads every level-5 organ floor from the library and opens its named crisis", () => {
     const { w, b } = body(), a = assembleBody(w, b.id), process = anatomyProcess(a);
-    for (const row of libraryTable("anatomy", "crisis_floors")) {
+    // Tissue floors (2787) are exercised through nutrition in medicine.test.ts.
+    const organFloors = libraryTable("anatomy", "crisis_floors").filter(row => a.organs[String(row.Organ)]);
+    for (const row of organFloors) {
       expect(row.Level).toBe(5);
       a.organs[String(row.Organ)].damage = 1; // below any listed floor, no invented damage rate
     }
     process.step(w, 0);
-    expect(crisesOf(w, b.id).map(c => c.cause).sort()).toEqual(libraryTable("anatomy", "crisis_floors").map(r => String(r.Organ)).sort());
+    expect(crisesOf(w, b.id).map(c => c.cause).sort()).toEqual(organFloors.map(r => String(r.Organ)).sort());
     for (const c of crisesOf(w, b.id)) expect(c.source).toContain(`anatomy.crisis_floors.${c.cause}`);
   });
 
