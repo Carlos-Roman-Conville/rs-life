@@ -4,7 +4,7 @@ import { Scheduler } from "../src/scheduler.ts";
 import { defaultRegistry, type Component } from "../src/registry.ts";
 import { KCAL_J, metabolicHeat } from "../src/physics.ts";
 import { libraryRow } from "../src/library.ts";
-import validation from "../data/library/validation.json";
+import { validation } from "../src/library.ts";
 import { addBodyWater, restingMetabolicRate, bodyOutputs, circadianRow, coreRow, hydrationRow, ingest, metOf, overnight, palRange, physiologyProcess, sleepDebtRow, splitSleepQuality, wbgtCeiling, wbgtClass, type PhysiologyOptions } from "../src/physiology.ts";
 
 interface Setup { roomC?: number; wbgt?: number; body?: Record<string, number>; waterKg?: number; opts?: PhysiologyOptions }

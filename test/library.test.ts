@@ -15,10 +15,11 @@ import physiology from "../data/library/physiology.json" with { type: "json" };
 import population from "../data/library/population.json" with { type: "json" };
 import science from "../data/library/science.json" with { type: "json" };
 import sources from "../data/library/sources.json" with { type: "json" };
+import { validation } from "../src/library.ts";
 
 type Table = { columns: string[]; rows: unknown[][] };
 type Doc = Record<string, Table | string>;
-const LIBRARY: Record<string, Doc> = { anatomy, atmosphere, chemistry, circulation, ecology, environment, equipment, gasdynamics, medicine, muscular, neurology, nutrition, physiology, population, science, sources } as unknown as Record<string, Doc>;
+const LIBRARY: Record<string, Doc> = { anatomy, atmosphere, chemistry, circulation, ecology, environment, equipment, gasdynamics, medicine, muscular, neurology, nutrition, physiology, population, science, sources, validation } as unknown as Record<string, Doc>;
 const tables = (doc: Doc) => Object.entries(doc).filter((e): e is [string, Table] => !e[0].startsWith("_") && typeof e[1] === "object");
 
 describe("the scientific data library", () => {

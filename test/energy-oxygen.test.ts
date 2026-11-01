@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import references from '../data/library/validation.json' with { type: 'json' };
+import { validation as references } from "../src/library.ts";
 import { World } from '../src/world.ts';
 import { Scheduler } from '../src/scheduler.ts';
 import { defaultRegistry, type Component } from '../src/registry.ts';

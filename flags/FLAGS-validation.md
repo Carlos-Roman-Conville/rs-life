@@ -1,6 +1,6 @@
 ## validation reference data (2645)
 
-Figures for `data/library/validation.json`, taken from pages opened in this unit, never from memory. Each row's URL column is the page. Tables are keyed as in the file.
+Figures for `data/library/validation/index.json`, taken from pages opened in this unit, never from memory. Each row's URL column is the page. The index lists tables in order; each table is in `data/library/validation/<table>.json`.
 
 - (2645) sourced: `oxygen_energy` 3.941 kcal per litre of O2 and 1.106 per litre of CO2 (protein term 0.082 P), from the equation as Eq 1 of a 2019 validation paper (PMC6358081) that attributes it to Weir 1949; Wikipedia gives the rounded 3.9 and 1.1 with the 1.440 per-day factor. Weir's own paper (PMC1392602) opened as scanned page images with no text, so the original was not read; the CO2 coefficient follows from RQ = VCO2/VO2, no page states it as a per-litre figure.
 - (2645) sourced: `equine_resting_vo2` 4.0 +/- 0.7 mL/kg/min standing, 12 warmblood saddle horses (Hanak 2001, Table 1). The table caption says S.E.M. and the text says SD, so Low and High (mean -/+ 0.7) are not a measured range. Other horse pages (Arabian endurance, Paso Fino, Standardbred treadmill) gave no resting mean that opened.

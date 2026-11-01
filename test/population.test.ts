@@ -3,7 +3,7 @@ const { readFileSync } = (globalThis as unknown as { process: { getBuiltinModule
 import { describe, expect, it } from "vitest";
 import { Trace } from "../src/trace.ts";
 import { advanceDays, createMedicine, diseaseCourse, expose, rangePoint, resolveCrisis } from "../src/medicine.ts";
-import validation from "../data/library/validation.json";
+import { validation } from "../src/library.ts";
 import { COHORTS, populationLabourSupply, ageingRates, createPopulation, elderDeathFactor, famineRule, populationOutputs, settlersPerDay, startEpidemic, tick, total } from "../src/population.ts";
 
 const rates = { birthRate: 0.2, deathRate: 0.03, childMaleShare: 0.5 };
@@ -203,7 +203,7 @@ describe("an epidemic through the disease course", () => {
 
   it("validation (2626): Angola suspected-case fatality is inside the yellow-fever range; other endpoints remain unvalidated", () => {
     // https://en.wikipedia.org/wiki/2016_Angola_and_DR_Congo_yellow_fever_outbreak
-    // Opened by 2645, transcribed in validation.json. No uncertainty band is supplied, so none is invented.
+    // Opened by 2645, transcribed in data/library/validation/outbreak_records.json. No uncertainty band is supplied, so none is invented.
     // Suspected cases are not confirmed cases; this is only range compatibility, not full outbreak validation.
     const rows = validation.outbreak_records.rows;
     const cfr = Number(rows.find(r => r[0] === "validation.outbreak_records.yf-angola-2016-cfr-suspected")![2]) / 100;

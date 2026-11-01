@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check data/library/*.json (MIGRATION.md, phase 2). Exits 0 when:
+"""Check data/library/*.json and validation/*.json (MIGRATION.md, phase 2). Exits 0 when:
   - every library file parses and every table has columns and rows of matching width;
   - every table has `id` and `source` columns, and no two rows share an id (across all files);
   - every `source` value is `open` or '; '-separated keys present in data/library/sources.json;
@@ -28,6 +28,35 @@ def main():
             docs[p.stem] = json.loads(p.read_text(encoding="utf-8"))
         except ValueError as e:
             problems.append(f"{p.name}: does not parse ({e})")
+    # Validation references are one raw table per file, in manifest order.
+    validation_dir = LIB / "validation"
+    try:
+        index = json.loads((validation_dir / "index.json").read_text(encoding="utf-8"))
+        names = index["tables"]
+        if not isinstance(names, list) or not all(isinstance(name, str) for name in names):
+            raise ValueError("tables must be a list of table names")
+        if len(names) != len(set(names)):
+            problems.append("validation/index.json: duplicate table names")
+        paths = {p.stem: p for p in validation_dir.glob("*.json") if p.name != "index.json"}
+        for name in sorted(set(paths) - set(names)):
+            problems.append(f"validation/{name}.json: not listed in index.json")
+        doc = {"_about": index["_about"]}
+        for name in names:
+            if name.startswith("_") or name not in paths:
+                problems.append(f"validation/index.json: missing or invalid table {name!r}")
+                continue
+            try:
+                table = json.loads(paths[name].read_text(encoding="utf-8"))
+                if not isinstance(table, dict):
+                    raise ValueError("table must be an object")
+                doc[name] = table
+            except (OSError, ValueError) as e:
+                problems.append(f"validation/{name}.json: cannot load ({e})")
+        if "validation" in docs:
+            problems.append("validation: both monolithic and split data exist")
+        docs["validation"] = doc
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        problems.append(f"validation/index.json: cannot load ({e})")
     keys = set()
     if "sources" in docs:
         t = docs["sources"].get("sources")

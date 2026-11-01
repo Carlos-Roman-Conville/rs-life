@@ -6,7 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PLANTS = ROOT / "data" / "library" / "plants.json"
-VALIDATION = ROOT / "data" / "library" / "validation.json"
+VALIDATION = ROOT / "data" / "library" / "validation" / "plants_validation.json"
 FLAGS = ROOT / "flags" / "plants.md"
 LABELS = frozenset({"researched", "estimate", "fiction"})
 
@@ -105,8 +105,7 @@ def main() -> int:
     for field in sorted(expected_fields - seen):
         problems.append(f"missing row for field {field!r}")
 
-    vdoc = json.loads(VALIDATION.read_text(encoding="utf-8"))
-    pv = vdoc.get("plants_validation")
+    pv = json.loads(VALIDATION.read_text(encoding="utf-8"))
     if pv:
         vcols = pv["columns"]
         vidi = col_index(vcols, "id")

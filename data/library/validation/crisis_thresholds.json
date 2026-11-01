@@ -1,0 +1,17 @@
+{
+    "title": "Clinical thresholds for haemorrhage classes and dehydration severity",
+    "kind": "reference",
+    "conf": "medium",
+    "source": "ATLS haemorrhage classes as transcribed by Tom Wade MD from the ATLS 9th edition Student Course Manual (a secondary page; the manual itself was not opened); dehydration bands from an AAFP summary of Steiner et al., JAMA 2004;291:2746-54 (children). No clinical source found for organ-function floors.",
+    "columns": ["id", "Quantity", "Value", "Low", "High", "Unit", "Population or conditions", "Note", "URL", "source"],
+    "rows": [
+      ["validation.crisis_thresholds.atls-class-1", "Haemorrhage class I: blood volume lost", null, 0, 15, "percent of blood volume", "70 kg adult trauma patient; up to 750 mL", "Heart rate under 100, systolic pressure normal, pulse pressure normal, respiratory rate 14 to 20, urine over 30 mL/h, slightly anxious.", "https://www.tomwademd.net/?p=940", "open"],
+      ["validation.crisis_thresholds.atls-class-2", "Haemorrhage class II: blood volume lost", null, 15, 30, "percent of blood volume", "70 kg adult; 750 to 1,500 mL", "Heart rate 100 to 120, systolic normal, pulse pressure decreased, respiratory rate 20 to 30, urine 20 to 30 mL/h, mildly anxious.", "https://www.tomwademd.net/?p=940", "open"],
+      ["validation.crisis_thresholds.atls-class-3", "Haemorrhage class III: blood volume lost", null, 30, 40, "percent of blood volume", "70 kg adult; 1,500 to 2,000 mL", "Heart rate 120 to 140, systolic decreased, pulse pressure decreased, respiratory rate 30 to 40, urine 5 to 15 mL/h, anxious or confused.", "https://www.tomwademd.net/?p=940", "open"],
+      ["validation.crisis_thresholds.atls-class-4", "Haemorrhage class IV: blood volume lost", null, 40, null, "percent of blood volume", "70 kg adult; over 2,000 mL", "Heart rate over 140, systolic decreased, pulse pressure decreased, respiratory rate over 35, urine negligible, confused or lethargic.", "https://www.tomwademd.net/?p=940", "open"],
+      ["validation.crisis_thresholds.dehydration-mild", "Dehydration, mild", null, 3, 5, "percent of body mass lost", "Children; 'most guidelines' per the AAFP summary of Steiner 2004", "For under 2s other sources give 5/10/15%; those pages were not opened.", "https://www.aafp.org/afp/2005/0301/p1010", "open"],
+      ["validation.crisis_thresholds.dehydration-moderate", "Dehydration, moderate", null, 6, 9, "percent of body mass lost", "Same", "", "https://www.aafp.org/afp/2005/0301/p1010", "open"],
+      ["validation.crisis_thresholds.dehydration-severe", "Dehydration, severe", null, 10, null, "percent of body mass lost", "Same", "", "https://www.aafp.org/afp/2005/0301/p1010", "open"],
+      ["validation.crisis_thresholds.organ-function-floors", "Organ-function floors (a level below which an organ stops)", null, null, null, "none found", "No clinical source found", "Searched; null. See flags/FLAGS-validation.md.", "https://www.aafp.org/afp/2005/0301/p1010", "open"]
+    ]
+  }

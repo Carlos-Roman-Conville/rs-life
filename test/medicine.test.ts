@@ -9,7 +9,7 @@ import { initialiseCirculation } from "../src/circulation.ts";
 import { libraryRow, libraryTable } from "../src/library.ts";
 import * as library from "../src/library.ts";
 import { allCrises, causeOfDeath, declareDeath } from "../src/crisis.ts";
-import validation from "../data/library/validation.json";
+import { validation } from "../src/library.ts";
 import { anatomyProcess, assembleBody } from "../src/anatomy.ts";
 import { eat, nutritionProcess, poolLevel, stockPools } from "../src/nutrition.ts";
 import { advanceDays, airConditions, createMedicine, daysRange, diseaseCourse, expose, healingMultiplier, immunityRule, inflictWound,

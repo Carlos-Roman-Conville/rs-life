@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import ts from 'typescript';
-import validation from '../data/library/validation.json';
+import { validation } from "../src/library.ts";
 import * as library from '../src/library.ts';
 import { allCrises } from '../src/crisis.ts';
 import { World } from '../src/world.ts';
@@ -343,7 +343,7 @@ describe('one body water ledger (2623)', () => {
   }, 20_000);
 
   it('validation (2623): preformed intake lies in Raman temperate adults range; sedentary turnover remains unvalidated', () => {
-    // https://pubmed.ncbi.nlm.nih.gov/14600032/ (opened by 2645, data/library/validation.json).
+    // https://pubmed.ncbi.nlm.nih.gov/14600032/ (opened by 2645, data/library/validation/water_turnover.json).
     // 1.4–7.7 L/day is PREformed intake, not total turnover or a sedentary-only range.
     const table = validation.water_turnover;
     const row = Object.fromEntries(table.columns.map((key, i) => [key, table.rows.find(r => r[0] === 'validation.water_turnover.raman-intake-men')![i]]));

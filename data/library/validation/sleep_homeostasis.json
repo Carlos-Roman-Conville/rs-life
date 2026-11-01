@@ -1,0 +1,12 @@
+{
+    "title": "Process S time constants of the two-process model of sleep",
+    "kind": "reference",
+    "conf": "medium",
+    "source": "Hagenauer MH and Lee TM, Adolescent sleep patterns in humans and laboratory animals, Horm Behav 2013;64:270-279 (PMC4780325), Figure 2 caption, which gives the Daan, Beersma and Borbely 1984 human values; a software page for the same model gives the same figures rounded. The 1984 abstract (Europe PMC) states no numbers, and its full text did not open.",
+    "columns": ["id", "Quantity", "Value", "Low", "High", "Unit", "Population or conditions", "Note", "URL", "source"],
+    "rows": [
+      ["validation.sleep_homeostasis.rise-tau", "Process S rise time constant while awake", 18.18, null, null, "h", "Human, from slow-wave activity in sleep deprivation experiments (Daan, Beersma and Borbely 1984, Am J Physiol 246:R161-R183); build-up rate 0.055 per h", "Caption quote: 'with a time constant of tau_i = 18.18 h and an instantaneous build up rate of 0.055/h'. Second-hand: the 1984 paper was not opened.", "https://pmc.ncbi.nlm.nih.gov/articles/PMC4780325/", "open"],
+      ["validation.sleep_homeostasis.decay-tau", "Process S decay time constant during sleep", 4.2, null, null, "h", "Same source and conditions; breakdown rate 0.238 per h", "Caption quote: 'with a time constant of tau_d = 4.2 h and an instantaneous break down rate of 0.238/h'.", "https://pmc.ncbi.nlm.nih.gov/articles/PMC4780325/", "open"],
+      ["validation.sleep_homeostasis.software-defaults", "Two-process model software defaults: decay then rise constant", 4.2, null, 18.2, "h", "HomeostaticProcess(tau_d=4.2, tau_r=18.2) in the twoprocessmodel package", "Value is the decay constant, High is the rise constant. The page names Daan 1984 and Borbely and Achermann 1999 but does not tie these figures to either; units are by the page's convention.", "https://twoprocessmodel.readthedocs.io/", "open"]
+    ]
+  }

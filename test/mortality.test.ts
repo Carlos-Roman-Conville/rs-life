@@ -11,7 +11,7 @@ import { bleedingClass, loseBlood } from "../src/circulation.ts";
 import { anatomyProcess, assembleBody, assemblyCirculation } from "../src/anatomy.ts";
 import { libraryRow, libraryTable } from "../src/library.ts";
 import { runWoundVariant, WOUND_FIXTURE } from "../examples/human-wound.ts";
-import validation from "../data/library/validation.json";
+import { validation } from "../src/library.ts";
 
 const DAY = 86400;
 function body(w = new World(defaultRegistry()), id = "body") {

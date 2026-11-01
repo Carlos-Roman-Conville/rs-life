@@ -1,0 +1,18 @@
+{
+    "title": "Peak blood alcohol and time to peak in controlled dosing",
+    "kind": "reference",
+    "conf": "medium",
+    "source": "Mitchell MC Jr, Teigen EL, Ramchandani VA, Absorption and peak blood alcohol concentration after drinking beer, wine, or spirits, Alcohol Clin Exp Res 2014;38:1200-1204 (PMC4112772), a dosing study with no Widmark formula in it; Jones AW, Forensic Sci Int 2010;200:1-20 (PubMed abstract) for elimination rates.",
+    "columns": ["id", "Quantity", "Value", "Low", "High", "Unit", "Population or conditions", "Note", "URL", "source"],
+    "rows": [
+      ["validation.alcohol_peak.mitchell-vodka-cmax", "Peak blood alcohol, vodka and tonic (20% v/v)", 77.4, 60.4, 94.4, "mg per dL", "15 healthy men, 0.5 g ethanol per kg body mass, fasted overnight, drunk over 20 min", "Table gives 77.4 +/- 17.0; Low and High are mean -/+ that figure. The footnote calls the bracket a standard error while the text says +/-; dispersion measure is ambiguous.", "https://pmc.ncbi.nlm.nih.gov/articles/PMC4112772", "open"],
+      ["validation.alcohol_peak.mitchell-vodka-tmax", "Time to peak, vodka and tonic", 0.6, null, null, "h", "Same dose and subjects", "Mean 36 min.", "https://pmc.ncbi.nlm.nih.gov/articles/PMC4112772", "open"],
+      ["validation.alcohol_peak.mitchell-wine-cmax", "Peak blood alcohol, white wine (12.5% v/v)", 61.7, 50.9, 72.5, "mg per dL", "Same dose and subjects", "Mean +/- 10.8; same dispersion caution.", "https://pmc.ncbi.nlm.nih.gov/articles/PMC4112772", "open"],
+      ["validation.alcohol_peak.mitchell-wine-tmax", "Time to peak, white wine", 0.91, null, null, "h", "Same dose and subjects", "Mean 54 min.", "https://pmc.ncbi.nlm.nih.gov/articles/PMC4112772", "open"],
+      ["validation.alcohol_peak.mitchell-beer-cmax", "Peak blood alcohol, beer (5.1% v/v)", 50.3, 40.5, 60.1, "mg per dL", "Same dose and subjects", "Mean +/- 9.8; same dispersion caution.", "https://pmc.ncbi.nlm.nih.gov/articles/PMC4112772", "open"],
+      ["validation.alcohol_peak.mitchell-beer-tmax", "Time to peak, beer", 1.04, null, null, "h", "Same dose and subjects", "Mean 62 min.", "https://pmc.ncbi.nlm.nih.gov/articles/PMC4112772", "open"],
+      ["validation.alcohol_peak.jones-elim-fasted", "Elimination rate, fasting", null, 10, 15, "mg per 100 mL per h", "Jones 2010 survey of studies meeting dose and sampling standards; empty stomach", "Peak and time to peak are not in the abstract.", "https://pubmed.ncbi.nlm.nih.gov/20304569/", "open"],
+      ["validation.alcohol_peak.jones-elim-fed", "Elimination rate, non-fasted", null, 15, 20, "mg per 100 mL per h", "Same survey; after food", "", "https://pubmed.ncbi.nlm.nih.gov/20304569/", "open"],
+      ["validation.alcohol_peak.jones-elim-range", "Elimination rate, whole physiological range", null, 10, 35, "mg per 100 mL per h", "Same survey; moderate drinkers average 15, apprehended drivers 19, alcoholics in detoxification 25 to 35", "", "https://pubmed.ncbi.nlm.nih.gov/20304569/", "open"]
+    ]
+  }

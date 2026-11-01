@@ -1,0 +1,13 @@
+{
+    "title": "Vitamin C depletion: time to scurvy and body pool at first signs",
+    "kind": "reference",
+    "conf": "low",
+    "source": "Wikipedia's Scurvy article (human trials section), which reports the Iowa prison depletion study (Hodges et al. 1969, 1971) and the British Sheffield study. The Hodges papers themselves did not open (PubMed, Europe PMC and the publisher gave no abstract text), so these are second-hand figures.",
+    "columns": ["id", "Quantity", "Value", "Low", "High", "Unit", "Population or conditions", "Note", "URL", "source"],
+    "rows": [
+      ["validation.vitamin_c_depletion.days-to-first-signs", "Time from the start of a vitamin C-free diet to the first signs of scurvy", 28, null, null, "days", "Iowa State Penitentiary volunteers, vitamin C-free diet; the page says 'about four weeks'", "Value is four weeks as 28 days. The same page says the British study took six to eight months, possibly because its subjects were pre-loaded with 70 mg per day, and that it takes 'at least a month' of little or no vitamin C before symptoms occur.", "https://en.wikipedia.org/wiki/Scurvy", "open"],
+      ["validation.vitamin_c_depletion.body-pool-at-signs", "Body pool of vitamin C when scurvy signs appeared", null, null, 300, "mg", "Iowa study subjects with signs, estimated by labelled vitamin C dilution; the page says 'less than 300 mg'", "An upper bound (High), not an exact threshold. The same page gives a daily turnover of only 2.5 mg per day.", "https://en.wikipedia.org/wiki/Scurvy", "open"],
+      ["validation.vitamin_c_depletion.wound-healing", "Impaired wound healing in scurvy: timing or size of the effect", null, null, null, "none found", "No page opened gave a day count or a healing-rate figure", "Only qualitative text: 'Defective collagen fibrillogenesis impairs wound healing' (Wikipedia) and, from the Linus Pauling Institute, 'wound healing is impaired due to the loss of mature collagen, which allows wounds to remain open' (cites refs 31-32, not Hodges 1971). Searched; null.", "https://lpi.oregonstate.edu/mic/health-disease/skin-health/vitamin-C", "open"],
+      ["validation.vitamin_c_depletion.plasma-threshold", "Plasma ascorbic acid below which symptoms appear", 10, null, null, "micromol per L", "Linus Pauling Institute skin-health page; symptoms 'appear once plasma concentrations of ascorbic acid drop below 10 micromolar'", "Prevented by as little as 10 mg per day, per the same page. A cross-check, not a body-pool figure.", "https://lpi.oregonstate.edu/mic/health-disease/skin-health/vitamin-C", "open"]
+    ]
+  }

@@ -41,7 +41,7 @@ Heitsman (2012), Table 1, as recorded in `flags/muscular.md` (2560). No rate or
 activation row changes. R here is the row's R times the caller's existing
 recovery multiplier. The empirical scope remains that of (2634)'s independent
 Vernillo 2018 endpoint checks in `test/fatigue.test.ts` and
-`data/library/validation.json`; full trajectories and activation-to-effort
+`data/library/validation/muscle_fatigue_data.json`; full trajectories and activation-to-effort
 mapping remain unvalidated. `test/muscular.test.ts` verifies the numerical
 change against the old Euler integrator, all eigenvalue cases, split calls,
 integrated transfers and twelve-hour calls.

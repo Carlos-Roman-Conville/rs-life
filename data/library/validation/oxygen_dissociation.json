@@ -1,0 +1,16 @@
+{
+    "title": "Standard human oxygen dissociation curve points",
+    "kind": "reference",
+    "conf": "medium",
+    "source": "Wikipedia and Deranged Physiology for P50, LITFL and FPnotebook for saturation at PO2, Europe PMC abstract of Severinghaus JW, J Appl Physiol 1979;46:599-602 for accuracy. The Severinghaus paper itself is behind a subscription and did not open.",
+    "columns": ["id", "Quantity", "Value", "Low", "High", "Unit", "Population or conditions", "Note", "URL", "source"],
+    "rows": [
+      ["validation.oxygen_dissociation.p50", "P50: PO2 at 50% haemoglobin saturation", 26.6, null, null, "mmHg", "Healthy adult; Deranged Physiology gives the normal adult range 24-28 mmHg and cites Brandis for 26.6", "Deranged Physiology states the standard conditions as pH 7.40, pCO2 40 mmHg, no dyshaemoglobins; no page opened states the temperature (37 C is the usual standard, not read from a page). Wikipedia: 'typically about 26.6 mmHg (3.5 kPa)'.", "https://en.wikipedia.org/wiki/Oxygen%E2%80%93hemoglobin_dissociation_curve", "open"],
+      ["validation.oxygen_dissociation.p50-range", "Normal adult P50 range", null, 24, 28, "mmHg", "Adult, as measured", "'In the adult, the normal p50 should be 24-28mmHg.'", "https://derangedphysiology.com/main/cicm-primary-exam/required-reading/respiratory-system/Chapter%201131/p50-value-blood-gas-sample", "open"],
+      ["validation.oxygen_dissociation.sat-27", "Saturation at PO2 27 mmHg", 50, null, null, "percent", "Non-shifted standard curve", "LITFL table pairs 27 mmHg with 50%; FPnotebook the same.", "https://litfl.com/oxygen-haemoglobin-dissociation-curve/", "open"],
+      ["validation.oxygen_dissociation.sat-40", "Saturation at PO2 40 mmHg", 75, null, null, "percent", "Non-shifted standard curve", "LITFL table row 75% at 40 mmHg. FPnotebook has no 40 mmHg row.", "https://litfl.com/oxygen-haemoglobin-dissociation-curve/", "open"],
+      ["validation.oxygen_dissociation.sat-60", "Saturation at PO2 60 mmHg", null, 91, 92, "percent", "Non-shifted standard curve", "LITFL gives 92% at 60 mmHg; FPnotebook gives 91% at 60 mmHg (92% at 64). The two pages differ by one point.", "https://litfl.com/oxygen-haemoglobin-dissociation-curve/", "open"],
+      ["validation.oxygen_dissociation.sat-100", "Saturation at PO2 100 mmHg", null, 96, 97, "percent", "Non-shifted standard curve", "No page lists 100 mmHg directly. FPnotebook rows: 96% at 90 mmHg and 97% at 110 mmHg ('unreliable above 97%'), so 100 mmHg lies between them; LITFL gives 97% at 95 mmHg. A bracket from neighbouring rows, not a stated point.", "https://mobile.fpnotebook.com/Lung/Lab/OxygnStrtn.htm", "open"],
+      ["validation.oxygen_dissociation.severinghaus-accuracy", "Severinghaus (1979) equation fit to the standard curve", 0.0055, null, null, "fractional saturation (plus or minus)", "Modified Hill equation fitted to standard human blood data, for 0 < S < 1", "Abstract: fits 'to within plus or minus 0.0055 fractional saturation (S) from O less than S less than 1'. Another page notes it fits better than the Hill equation below about 30 mmHg.", "https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=%22Simple%2C%20accurate%20equations%20for%20human%20blood%20O2%20dissociation%22&format=json&resultType=core", "open"]
+    ]
+  }

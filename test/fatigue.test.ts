@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import validation from "../data/library/validation.json";
+import { validation } from "../src/library.ts";
 import { libraryRow } from "../src/library.ts";
 import { createMuscularState, muscularActivation, muscularFatigueProcess, muscularOutputs, muscularRates,
   stepMuscleFatigue, type MuscularFatigueOptions } from "../src/muscular.ts";

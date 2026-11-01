@@ -48,7 +48,7 @@ The scale is Rex's open question; no rescaling was applied.
 
 ## Validation status
 
-The test reads archived opened rows of data/library/validation.json. Reference
+The test reads archived opened rows of data/library/validation/vo2max_norms.json. Reference
 20 L/min maximal output, 15 g/dL Hb and saturation(95), multiplied by the cited
 0.9 extraction and divided by the fixture's 70 kg, lies within FRIEND men's
 20-29 mean +/- SD (36.3 to 58.9 mL/kg/min). This validates only compatibility

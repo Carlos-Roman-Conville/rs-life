@@ -21,6 +21,30 @@ import population from "../data/library/population.json" with { type: "json" };
 import science from "../data/library/science.json" with { type: "json" };
 import sources from "../data/library/sources.json" with { type: "json" };
 
+import validationIndex from "../data/library/validation/index.json" with { type: "json" };
+import oxygen_energy from "../data/library/validation/oxygen_energy.json" with { type: "json" };
+import equine_resting_vo2 from "../data/library/validation/equine_resting_vo2.json" with { type: "json" };
+import water_turnover from "../data/library/validation/water_turnover.json" with { type: "json" };
+import alcohol_peak from "../data/library/validation/alcohol_peak.json" with { type: "json" };
+import outbreak_records from "../data/library/validation/outbreak_records.json" with { type: "json" };
+import crisis_thresholds from "../data/library/validation/crisis_thresholds.json" with { type: "json" };
+import met_compendium from "../data/library/validation/met_compendium.json" with { type: "json" };
+import muscle_fatigue_data from "../data/library/validation/muscle_fatigue_data.json" with { type: "json" };
+import vo2max_norms from "../data/library/validation/vo2max_norms.json" with { type: "json" };
+import working_hours from "../data/library/validation/working_hours.json" with { type: "json" };
+import vitamin_c_depletion from "../data/library/validation/vitamin_c_depletion.json" with { type: "json" };
+import sleep_homeostasis from "../data/library/validation/sleep_homeostasis.json" with { type: "json" };
+import oxygen_dissociation from "../data/library/validation/oxygen_dissociation.json" with { type: "json" };
+import blood_volume from "../data/library/validation/blood_volume.json" with { type: "json" };
+import gas_exposure_limits from "../data/library/validation/gas_exposure_limits.json" with { type: "json" };
+import rmr_measured from "../data/library/validation/rmr_measured.json" with { type: "json" };
+import scurvy_consequences from "../data/library/validation/scurvy_consequences.json" with { type: "json" };
+import plants_validation from "../data/library/validation/plants_validation.json" with { type: "json" };
+import excreta from "../data/library/validation/excreta.json" with { type: "json" };
+import gut_fermentation from "../data/library/validation/gut_fermentation.json" with { type: "json" };
+import energy_costs_growth_thermo_repro from "../data/library/validation/energy_costs_growth_thermo_repro.json" with { type: "json" };
+import tissue_turnover from "../data/library/validation/tissue_turnover.json" with { type: "json" };
+
 export type Cell = string | number | boolean | null;
 /** One library row: column name to cell. Every table but `sources` has `id` first and `source` last. */
 export type LibraryRow = Record<string, Cell>;
@@ -32,6 +56,21 @@ const FILES: Record<string, RawFile> = {
   anatomy, atmosphere, chemistry, circulation, ecology, environment, equipment, gasdynamics, medicine, muscular,
   neurology, nutrition, physiology, plants, population, science, sources,
 } as unknown as Record<string, RawFile>;
+
+// Independent references remain separate from the model library exposed by libraryFiles().
+// The manifest preserves the original reference table order regardless of import order.
+const validationTables = {
+  oxygen_energy, equine_resting_vo2, water_turnover, alcohol_peak,
+  outbreak_records, crisis_thresholds, met_compendium, muscle_fatigue_data,
+  vo2max_norms, working_hours, vitamin_c_depletion, sleep_homeostasis,
+  oxygen_dissociation, blood_volume, gas_exposure_limits, rmr_measured,
+  scurvy_consequences, plants_validation, excreta, gut_fermentation,
+  energy_costs_growth_thermo_repro, tissue_turnover,
+};
+export const validation = {
+  _about: validationIndex._about,
+  ...Object.fromEntries(validationIndex.tables.map(name => [name, validationTables[name as keyof typeof validationTables]])) as typeof validationTables,
+};
 
 const cache = new Map<string, LibraryRow[]>();
 

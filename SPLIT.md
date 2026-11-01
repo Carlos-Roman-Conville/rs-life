@@ -55,7 +55,7 @@ re-owned the registry rows by domain tag.** Phase 6 mechanics is built in a new 
 | `ecology.json` | split | `soil` to Reality; `depletion_rules` to Life |
 | `anatomy.json`, `circulation.json`, `medicine.json`, `muscular.json`, `neurology.json`, `nutrition.json`, `physiology.json`, `population.json` | Life | `anatomy.respiratory` and `physiology.ventilation` stay Life (breathing) |
 | `sources.json` | Reality | one shared copy in `reality/data/`, read by Life (section 7, B) |
-| `validation.json` | split by row domain | split it while splitting its size (belt review fix: 55 KB) |
+| `validation/<table>.json`, `validation/index.json` | split by row domain | one file per table; index preserves original table order (5239); domain ownership split remains planned |
 | `scripts/check_library.py` | both | each package runs it on its own files |
 
 ## 4. Cross-reads that become kernel ports

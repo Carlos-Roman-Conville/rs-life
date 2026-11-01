@@ -1,5 +1,5 @@
 {
-  "_about": "Scientific data library, domain plants: one table per species (binomial in snake_case). Each Value is labelled researched (opened page, URL given), estimate (stated basis in Note plus a flag line) or fiction; a value with neither stays null with a searched: line in flags/plants.md. Validation studies live in validation.json table plants_validation, never here.",
+  "_about": "Scientific data library, domain plants: one table per species (binomial in snake_case). Each Value is labelled researched (opened page, URL given), estimate (stated basis in Note plus a flag line) or fiction; a value with neither stays null with a searched: line in flags/plants.md. Validation studies live in validation/plants_validation.json, never here.",
   "schema": {
     "title": "Plant species field schema",
     "kind": "model",
@@ -3414,7 +3414,7 @@
     "title": "West Indian mahogany pollinators",
     "kind": "science",
     "conf": "low",
-    "source": "2813 research unit: pollinator groups named by the 2809 pollination_modes row (thrips, bees, moths). Three thrips rows are proxies from the Florida flower thrips Frankliniella bispinosa (Tsai et al. 1996, Cluever and Smith); every other field is null with a searched line in flags/plants.md because no opened source measures it. The only field figure found (thrips in flowers, Florida) is in validation.json plants_validation, not here.",
+    "source": "2813 research unit: pollinator groups named by the 2809 pollination_modes row (thrips, bees, moths). Three thrips rows are proxies from the Florida flower thrips Frankliniella bispinosa (Tsai et al. 1996, Cluever and Smith); every other field is null with a searched line in flags/plants.md because no opened source measures it. The only field figure found (thrips in flowers, Florida) is in validation/plants_validation.json, not here.",
     "columns": [
       "id",
       "Section",

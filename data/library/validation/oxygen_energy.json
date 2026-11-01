@@ -1,0 +1,15 @@
+{
+    "title": "Weir equation coefficients (energy per litre of O2 and of CO2)",
+    "kind": "reference",
+    "conf": "medium",
+    "source": "Weir JB, New methods for calculating metabolic rate with special reference to protein metabolism, J Physiol 1949;109:1-9 (PMC1392602 holds only scanned page images, so the coefficients below are as two later pages state the equation). Reference data for validating the energy-from-gas code; not a fit.",
+    "columns": ["id", "Quantity", "Value", "Low", "High", "Unit", "Population or conditions", "Note", "URL", "source"],
+    "rows": [
+      ["validation.oxygen_energy.o2-coefficient", "Energy per litre of O2 in the Weir equation (protein term left out)", 3.941, null, null, "kcal per L (STPD)", "Full form EE = VO2 (3.941 + 1.106 RQ) (1 + 0.082 P); EE in kcal/h when VO2 is in L/h; P = protein share of total EE", "Read from the validation paper's Eq 1, which attributes it to Weir 1949; with RQ = VCO2/VO2 the equation is 3.941 VO2 + 1.106 VCO2.", "https://pmc.ncbi.nlm.nih.gov/articles/PMC6358081/", "open"],
+      ["validation.oxygen_energy.co2-coefficient", "Energy per litre of CO2 in the Weir equation (protein term left out)", 1.106, null, null, "kcal per L (STPD)", "Same equation; the CO2 coefficient is the RQ term, 1.106 x (VCO2/VO2) x VO2", "The page states no separate per-litre CO2 figure; 1.106 follows by substituting RQ = VCO2/VO2.", "https://pmc.ncbi.nlm.nih.gov/articles/PMC6358081/", "open"],
+      ["validation.oxygen_energy.protein-factor", "Protein correction factor", 0.082, null, null, "per unit protein share of EE (1 + 0.082 P)", "P is the proportion of total EE from protein metabolism", "Stated in the validation paper's Eq 1.", "https://pmc.ncbi.nlm.nih.gov/articles/PMC6358081/", "open"],
+      ["validation.oxygen_energy.rounded-o2", "Rounded O2 coefficient", 3.9, null, null, "kcal per L", "Metabolic rate (kcal per day) = 1.440 (3.9 VO2 + 1.1 VCO2), VO2 and VCO2 in L/min", "Wikipedia quoting Burns and Snow; 1.440 converts L/min to per day.", "https://en.wikipedia.org/wiki/Weir_formula", "open"],
+      ["validation.oxygen_energy.rounded-co2", "Rounded CO2 coefficient", 1.1, null, null, "kcal per L", "Same equation, VCO2 in L/min", "Same page.", "https://en.wikipedia.org/wiki/Weir_formula", "open"],
+      ["validation.oxygen_energy.kcal-per-l-o2-by-rq", "Energy per litre of O2 at RQ 0.7 (low) and RQ 1.0 (high)", null, 4.7, 5.0, "kcal per L O2", "From the validation paper's text", "A cross-check of the equation: 3.941 + 1.106 x 0.7 = 4.72 and 3.941 + 1.106 = 5.05.", "https://pmc.ncbi.nlm.nih.gov/articles/PMC6358081/", "open"]
+    ]
+  }

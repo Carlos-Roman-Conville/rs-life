@@ -1,0 +1,19 @@
+{
+    "title": "VO2max norms for men aged 20 to 29 and maximal arteriovenous O2 extraction",
+    "kind": "reference",
+    "conf": "medium",
+    "source": "Kaminsky LA, Arena R, Myers J, Mayo Clin Proc 2015 (FRIEND registry, PMC4919021); Skattebo O, Calbet JAL, Rud B, Capelli C, Hallen J, Acta Physiol 2020;230:e13486 (abstract via Europe PMC). The registry is apparently healthy people without cardiovascular disease, not a verified untrained group.",
+    "columns": ["id", "Quantity", "Value", "Low", "High", "Unit", "Population or conditions", "Note", "URL", "source"],
+    "rows": [
+      ["validation.vo2max_norms.men-20-29-mean", "VO2max, men 20 to 29, mean +/- SD 47.6 +/- 11.3", 47.6, 36.3, 58.9, "mL per kg per min", "513 men, maximal treadmill cardiopulmonary exercise test, peak RER 1.00 or higher", "Low and High are mean -/+ SD.", "https://pmc.ncbi.nlm.nih.gov/articles/PMC4919021/", "open"],
+      ["validation.vo2max_norms.men-20-29-p05", "5th percentile", 29.0, null, null, "mL per kg per min", "Same 513 men", "", "https://pmc.ncbi.nlm.nih.gov/articles/PMC4919021/", "open"],
+      ["validation.vo2max_norms.men-20-29-p10", "10th percentile", 32.1, null, null, "mL per kg per min", "Same 513 men", "", "https://pmc.ncbi.nlm.nih.gov/articles/PMC4919021/", "open"],
+      ["validation.vo2max_norms.men-20-29-p25", "25th percentile", 40.1, null, null, "mL per kg per min", "Same 513 men", "", "https://pmc.ncbi.nlm.nih.gov/articles/PMC4919021/", "open"],
+      ["validation.vo2max_norms.men-20-29-p50", "50th percentile", 48.0, null, null, "mL per kg per min", "Same 513 men", "The abstract quotes 48.0 for men and 37.6 for women aged 20 to 29.", "https://pmc.ncbi.nlm.nih.gov/articles/PMC4919021/", "open"],
+      ["validation.vo2max_norms.men-20-29-p75", "75th percentile", 55.2, null, null, "mL per kg per min", "Same 513 men", "", "https://pmc.ncbi.nlm.nih.gov/articles/PMC4919021/", "open"],
+      ["validation.vo2max_norms.men-20-29-p90", "90th percentile", 61.8, null, null, "mL per kg per min", "Same 513 men", "", "https://pmc.ncbi.nlm.nih.gov/articles/PMC4919021/", "open"],
+      ["validation.vo2max_norms.men-20-29-p95", "95th percentile", 66.3, null, null, "mL per kg per min", "Same 513 men", "", "https://pmc.ncbi.nlm.nih.gov/articles/PMC4919021/", "open"],
+      ["validation.vo2max_norms.avo2-diff-max", "Systemic arteriovenous O2 difference at VO2max", null, 118, 168, "mL per L of blood", "Pooled published studies, 17 articles with 154 healthy young men, VO2max 2 to 4.5 L/min; the difference rose with VO2max over that range, then fell", "Equals 11.8 to 16.8 mL/dL (unit change only).", "https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=TITLE%3A%22Contribution%20of%20oxygen%20extraction%20fraction%20to%20maximal%20oxygen%20uptake%22&format=json&resultType=core", "open"],
+      ["validation.vo2max_norms.o2-extraction-fraction-max", "Systemic O2 extraction fraction at VO2max", 0.9, null, null, "fraction", "Same pooled data; reached about 90% at VO2max of 4.5 L/min, with no further rise; leg extraction approached 90 to 95%", "", "https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=TITLE%3A%22Contribution%20of%20oxygen%20extraction%20fraction%20to%20maximal%20oxygen%20uptake%22&format=json&resultType=core", "open"]
+    ]
+  }

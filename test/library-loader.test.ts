@@ -1,7 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { libraryColumns, libraryFiles, libraryMeta, libraryRow, libraryTable, libraryTables } from "../src/library.ts";
+import { libraryColumns, libraryFiles, libraryMeta, libraryRow, libraryTable, libraryTables, validation } from "../src/library.ts";
+import validationIndex from "../data/library/validation/index.json" with { type: "json" };
+import oxygenEnergy from "../data/library/validation/oxygen_energy.json" with { type: "json" };
+import tissueTurnover from "../data/library/validation/tissue_turnover.json" with { type: "json" };
 
 describe("the library loader", () => {
+  it("reassembles independent validation references in manifest order without changing raw tables", () => {
+    expect(Object.keys(validation)).toEqual(["_about", ...validationIndex.tables]);
+    expect(validation._about).toBe(validationIndex._about);
+    expect(validation.oxygen_energy).toBe(oxygenEnergy);
+    expect(validation.tissue_turnover).toBe(tissueTurnover);
+    for (const name of validationIndex.tables) {
+      const table = validation[name as keyof typeof validation];
+      expect(table, name).toHaveProperty("columns");
+      expect(table, name).toHaveProperty("rows");
+    }
+  });
+
   it("loads every table of every file, each row with an id and a source", () => {
     const files = libraryFiles();
     expect(files).toContain("physiology");

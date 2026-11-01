@@ -1,0 +1,27 @@
+{
+  "_about": "Independent reference data for verification and validation (Toolchain PLATFORM.md section 11a, task 2645): figures from sources other than those the code was built from, each with its population or conditions and the URL of the page opened. One table per check. Same columns/rows schema as the other library files; `source` is `open` and the page is in the URL column. A null Value, Low and High means no page gave the figure (see flags/FLAGS-validation.md). Written by the task, not by scripts/split_data.py.",
+  "tables": [
+    "oxygen_energy",
+    "equine_resting_vo2",
+    "water_turnover",
+    "alcohol_peak",
+    "outbreak_records",
+    "crisis_thresholds",
+    "met_compendium",
+    "muscle_fatigue_data",
+    "vo2max_norms",
+    "working_hours",
+    "vitamin_c_depletion",
+    "sleep_homeostasis",
+    "oxygen_dissociation",
+    "blood_volume",
+    "gas_exposure_limits",
+    "rmr_measured",
+    "scurvy_consequences",
+    "plants_validation",
+    "excreta",
+    "gut_fermentation",
+    "energy_costs_growth_thermo_repro",
+    "tissue_turnover"
+  ]
+}

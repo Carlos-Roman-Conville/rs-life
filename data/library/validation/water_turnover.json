@@ -1,0 +1,21 @@
+{
+    "title": "Daily water turnover by isotope dilution",
+    "kind": "reference",
+    "conf": "medium",
+    "source": "Yamada Y et al., Science 2022;378:909-915 (full text PMC9764345; Figure captions as read by the page fetch) and Raman A et al., Am J Physiol Renal 2004;286:F394-401 (PubMed abstract). Neither isolates sedentary adults; see Note.",
+    "columns": ["id", "Quantity", "Value", "Low", "High", "Unit", "Population or conditions", "Note", "URL", "source"],
+    "rows": [
+      ["validation.water_turnover.yamada-men", "Mean water turnover, men", 4.3, null, null, "L per day", "Yamada 2022 sample, 1,875 males and 3,729 females aged 0 to 96 y, deuterium (2H) tracer; Fig. 2 caption", "The caption does not say the means are adults only; they may pool ages. No sedentary-only or temperate-only mean is given.", "https://pmc.ncbi.nlm.nih.gov/articles/PMC9764345", "open"],
+      ["validation.water_turnover.yamada-women", "Mean water turnover, women", 3.4, null, null, "L per day", "Same sample and caption", "Same caution.", "https://pmc.ncbi.nlm.nih.gov/articles/PMC9764345", "open"],
+      ["validation.water_turnover.yamada-men-over-70", "Mean water turnover, men over 70", 3.1, null, null, "L per day", "Same sample, over 70 y", "Fig. 2 caption.", "https://pmc.ncbi.nlm.nih.gov/articles/PMC9764345", "open"],
+      ["validation.water_turnover.yamada-women-over-70", "Mean water turnover, women over 70", 2.8, null, null, "L per day", "Same sample, over 70 y", "Fig. 2 caption.", "https://pmc.ncbi.nlm.nih.gov/articles/PMC9764345", "open"],
+      ["validation.water_turnover.yamada-model-man", "Model prediction, non-athletic 20-year-old man", 3.2, null, null, "L per day", "70 kg, physical activity level 1.75, high human development index, 10 C, 50% humidity, 0 m altitude", "The paper's prediction equation, not a measured mean.", "https://pmc.ncbi.nlm.nih.gov/articles/PMC9764345", "open"],
+      ["validation.water_turnover.yamada-model-woman", "Model prediction, 20-year-old woman", 2.7, null, null, "L per day", "60 kg, same conditions as the man", "The paper's prediction equation, not a measured mean.", "https://pmc.ncbi.nlm.nih.gov/articles/PMC9764345", "open"],
+      ["validation.water_turnover.yamada-season-spring", "Mean water turnover in spring (repeat measures)", 3.0, null, null, "L per day", "72 people (31 women, 41 men), about 18 C; +/- 0.7", "Fig. 4A; sexes not reported separately.", "https://pmc.ncbi.nlm.nih.gov/articles/PMC9764345", "open"],
+      ["validation.water_turnover.yamada-season-summer", "Mean water turnover in summer (repeat measures)", 3.7, null, null, "L per day", "Same 72 people, about 29 C; +/- 1.0", "Fig. 4A.", "https://pmc.ncbi.nlm.nih.gov/articles/PMC9764345", "open"],
+      ["validation.water_turnover.raman-intake-men", "Preformed water intake, men (range in Low and High)", 3.0, 1.4, 7.7, "L per day", "458 free-living US adults aged 40 to 79 y, temperate climates, 2H oxide, adjusted for metabolic water and humidity", "Preformed intake (drink and food water), not total turnover; the abstract also says water turnover varies widely and body size explains under 12%.", "https://pubmed.ncbi.nlm.nih.gov/14600032/", "open"],
+      ["validation.water_turnover.raman-intake-women", "Preformed water intake, women (range in Low and High)", 2.5, 1.2, 4.6, "L per day", "Same 458 adults", "Same.", "https://pubmed.ncbi.nlm.nih.gov/14600032/", "open"],
+      ["validation.water_turnover.raman-urine-men", "24 h urine output, men (range in Low and High)", 2.2, 0.6, 4.9, "L per day", "280 of the adults collected urine (p-aminobenzoic acid checked completeness)", "", "https://pubmed.ncbi.nlm.nih.gov/14600032/", "open"],
+      ["validation.water_turnover.raman-urine-women", "24 h urine output, women (range in Low and High)", 2.2, 0.9, 6.0, "L per day", "Same subset", "", "https://pubmed.ncbi.nlm.nih.gov/14600032/", "open"]
+    ]
+  }

@@ -1,4 +1,4 @@
-import validation from "../data/library/validation.json";
+import { validation } from "../src/library.ts";
 import { describe, it, expect } from "vitest";
 import { bodyBanisterDay, bodyTrainingFactor, muscularBanisterDay, trainingFactor } from "../src/muscular.ts";
 import { assembleBody, assemblyCirculation } from "../src/anatomy.ts";

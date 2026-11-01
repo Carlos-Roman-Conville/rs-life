@@ -1,0 +1,13 @@
+{
+    "title": "Working hours per day for labourers (period source)",
+    "kind": "reference",
+    "conf": "medium",
+    "source": "Voth HJ, Time and work in eighteenth-century London, J Econ Hist 1998;58:29-58. The JEH PDF is scanned images with no text, so the figure is as Stephenson 2018 (Judy Stephenson, MPRA 84828) reports Voth's result; the Nuffield working-paper page gave an abstract only.",
+    "columns": ["id", "Quantity", "Value", "Low", "High", "Unit", "Population or conditions", "Note", "URL", "source"],
+    "rows": [
+      ["validation.working_hours.voth-hours-per-day", "Hours worked per working day", 11, null, null, "h per day", "London, from witnesses' court depositions, 1750s to 1800; Stephenson reports 'only 208 working days of 11 hours a day on average' in the 1750s", "Voth's sample is wage-earning men in many trades, not only labourers; the day length did not change much in his result.", "https://mpra.ub.uni-muenchen.de/84828/1/MPRA_paper_84828.pdf", "open"],
+      ["validation.working_hours.voth-days-1750s", "Working days per year, 1750s", 208, null, null, "days per year", "Same source", "", "https://mpra.ub.uni-muenchen.de/84828/1/MPRA_paper_84828.pdf", "open"],
+      ["validation.working_hours.voth-days-1800", "Working days per year, 1800", 306, null, null, "days per year", "Same source", "Stephenson: rose to 306 days of 11 hours.", "https://mpra.ub.uni-muenchen.de/84828/1/MPRA_paper_84828.pdf", "open"],
+      ["validation.working_hours.voth-abstract", "Period covered by the estimates", null, 1749, 1803, "years", "Annual labour input estimates for 1749-63 and 1799-1803", "Abstract page only; no hours figure on the page.", "https://www.nuffield.ox.ac.uk/economics/history/paper21/voth.htm", "open"]
+    ]
+  }

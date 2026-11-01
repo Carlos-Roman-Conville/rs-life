@@ -1,0 +1,12 @@
+{
+    "title": "Measured force-decline datasets not used to fit Frey Law, Looft and Heitsman 2012",
+    "kind": "reference",
+    "conf": "medium",
+    "source": "Vernillo G et al., Med Sci Sports Exerc 2018;50:334-343 (published after the 2012 model, so cannot have been in its fit) and Allman BL and Rice CL, Med Sci Sports Exerc 2000;32(5) Suppl abstract 829 (a conference abstract; the 2012 fit set was not re-read in this unit, so independence of this one is unconfirmed).",
+    "columns": ["id", "Quantity", "Value", "Low", "High", "Unit", "Population or conditions", "Note", "URL", "source"],
+    "rows": [
+      ["validation.muscle_fatigue_data.vernillo-ef-end", "Elbow flexor MVC force at the end of a 2 min sustained maximal contraction, as % of the pre value", 42, 34, 50, "percent of pre-exercise MVC", "12 healthy young men; 2 min sustained isometric maximal voluntary contraction (duty cycle 100%); +/- 8 (Low and High are mean -/+ that)", "Force fell with the knee extensors until 35 s; at 95 s the elbow flexors were at 35% of baseline.", "https://paulogentil.com/pdf/Mechanisms%20of%20fatigue%20and%20recovery%20in%20upper%20versus%20lower%20limbs%20in%20men.pdf", "open"],
+      ["validation.muscle_fatigue_data.vernillo-ke-end", "Knee extensor MVC force at the end of the same 2 min contraction", 30, 20, 40, "percent of pre-exercise MVC", "Same 12 men, another day; +/- 10", "At 95 s the knee extensors were at 26% of baseline.", "https://paulogentil.com/pdf/Mechanisms%20of%20fatigue%20and%20recovery%20in%20upper%20versus%20lower%20limbs%20in%20men.pdf", "open"],
+      ["validation.muscle_fatigue_data.allman-ef-intermittent", "Elbow flexor MVC force after 50 contractions of an intermittent task", 56, null, null, "percent of initial MVC", "6 men; isometric contractions 3 s on, 2 s off (duty 3/5 = 60%, computed from the stated times) at 60% MVC, continued until force fell below 60% MVC", "The abstract says MVC 'declined linearly to approximately 56% within 50 contractions' (about 250 s); recovered to about 82% in 3 min and not fully within an hour.", "https://coachsci.sdsu.edu/csa/vol123/allman.htm", "open"]
+    ]
+  }

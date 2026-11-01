@@ -1,0 +1,10 @@
+{
+    "title": "Resting oxygen consumption of an adult horse",
+    "kind": "reference",
+    "conf": "medium",
+    "source": "Hanak J et al., A field study of oxygen consumption and estimated energy expenditure in the exercising horse, Acta Vet Brno 2001;70:133-139 (PDF text extracted). Other searches (Arabian endurance field study, Colombian Paso Fino, Standardbred treadmill) gave no resting mean that opened.",
+    "columns": ["id", "Quantity", "Value", "Low", "High", "Unit", "Population or conditions", "Note", "URL", "source"],
+    "rows": [
+      ["validation.equine_resting_vo2.standing", "Resting (standing) VO2, adult warmblood saddle horse", 4.0, 3.3, 4.7, "mL per kg per min (STPD)", "12 healthy warmblood saddle horses, age 4 to 12 y, mean body mass 477.5 +/- 32.8 kg; field, standing quietly 10 min in a respiratory mask before exercise", "Table 1 gives 4.0 +/- 0.7 (caption: mean +/- S.E.M.; the Results text says SD). Low and high here are mean -/+ the stated 0.7 only, not a measured range.", "https://actavet.vfu.cz/media/pdf/avb_2001070020133.pdf", "open"]
+    ]
+  }
