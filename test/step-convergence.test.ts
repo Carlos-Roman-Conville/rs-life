@@ -26,12 +26,13 @@ describe('step convergence (2819)', () => {
     expect(Math.abs(reference.ledgerResidualKg)).toBeLessThan(1e-9);
   });
 
+  // long simulation: explicit timeout (2831)
   it('the 60 s run reproduces the checkpoint unchanged', () => {
     expect(FIXTURE.stepS).toBe(60);
     const checkpoint = runHumanWeek();
     expect(runs.find(x => x.stepS === 60)!.daily).toEqual(checkpoint.days);
     expect(runHumanWeek(undefined, FIXTURE.stepS, 1).days).toEqual(checkpoint.days.slice(0, 1));
-  });
+  }, 180_000);
 
   it('times every process and the 3CC reads at both work-block ends each day', () => {
     for (const r of [...runs, reference]) {
