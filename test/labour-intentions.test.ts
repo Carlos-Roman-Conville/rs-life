@@ -106,16 +106,33 @@ describe("labour from intentions (IF-27)", () => {
     }
   });
 
-  it("checks event fields at runtime and rejects missing work hours", () => {
+  it("ignores an invalid intention by another mind", () => {
+    const bus = new EventBus(), persons = intentionLabour(bus, options());
+    emit(bus);
+    emit(bus, { mind: "person.ben", status: "unknown", terms: [] });
+    expect(persons.hours("person.ada", "farmer", 0)).toBe(8);
+    expect(persons.reservationWage("person.ada", "farmer", 0)).toBe(3);
+  });
+
+  it("ignores malformed events whose mind or action does not match", () => {
+    const bus = new EventBus(), persons = intentionLabour(bus, options());
+    emit(bus);
+    for (const patch of [{ mind: null }, { action: null }, { action: "wait" }]) {
+      emit(bus, { ...patch, status: "unknown" });
+    }
+    bus.emit({ t: 0, phase: 1, position: 0, source: "cognition", type: "cognition.intention", payload: null });
+    expect(persons.hours("person.ada", "farmer", 0)).toBe(8);
+    expect(persons.reservationWage("person.ada", "farmer", 0)).toBe(3);
+  });
+
+  it("checks matching intention fields at runtime and rejects missing work hours", () => {
     for (const patch of [{ terms: undefined }, { terms: { wage_min: 2 } }, { terms: { hours: "8" } },
-      { terms: [] }, { target: 1 }, { id: "" }, { mind: null }, { action: null }, { t: NaN }, { status: "unknown" }]) {
+      { terms: [] }, { target: 1 }, { id: "" }, { t: NaN }, { status: "unknown" }]) {
       const bus = new EventBus(), persons = intentionLabour(bus, options());
       emit(bus, patch);
       expect(() => persons.hours("person.ada", "farmer", 0)).toThrow(/labour: intention/);
+      expect(() => persons.reservationWage("person.ada", "farmer", 0)).toThrow(/labour: intention/);
     }
-    const bus = new EventBus(), persons = intentionLabour(bus, options());
-    bus.emit({ t: 0, phase: 1, position: 0, source: "cognition", type: "cognition.intention", payload: null });
-    expect(() => persons.hours("person.ada", "farmer", 0)).toThrow("evt.000001");
   });
 
   it("uses host action names and only roles matched by roleOf", () => {

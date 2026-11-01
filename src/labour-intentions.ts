@@ -66,8 +66,10 @@ export function intentionLabour(bus: EventBus, o: IntentionLabourOptions): Perso
     let found: LabourIntention | null = null;
     for (const event of bus.since(0, o.reader?.())) {
       if (event.type !== "cognition.intention") continue;
+      const p = event.payload;
+      if (!record(p) || p.mind !== person || (p.action !== o.workAction && p.action !== o.refuseAction)) continue;
       const i = intention(event);
-      if (i.mind === person && (i.action === o.workAction || i.action === o.refuseAction) && o.roleOf(i) === role) found = i;
+      if (o.roleOf(i) === role) found = i;
     }
     if (found?.action !== o.workAction) return null;
     term(found, "hours");
