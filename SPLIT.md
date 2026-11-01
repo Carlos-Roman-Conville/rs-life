@@ -130,7 +130,8 @@ Decided 2026-10-31 by the controller (architecture call, recorded for Rex to ove
   the same change. Reality keeps `scheduler.ts` (typed on World; retires when each process becomes a kernel process),
   `snapshot.ts` (World's participant capture; the generic half is already in the kernel), `graph.ts` (its port kinds
   and edge properties carry physics), and `elements.ts`, `registry.ts` and `world.ts`. Order: step 2e in realism, then
-  the kernel unit adds `trace.ts` and its doc fix, then a realism unit replaces its `trace.ts` with the re-export.
+  the kernel unit adds `trace.ts` and its doc fix, then a realism unit replaces its `trace.ts` with the re-export. Done (2801, 2803): trace.ts lives in the kernel;
+  realism re-exports it. <!-- (2803) -->
 - **B. Library sources.** `sources.json` is shared data: one copy in `reality/data/` that Life reads; no duplicate.
 - **C. Timing (revised 2026-10-31 after an organisation review).** The held sleep unit 2724 edits only `neurology.ts`,
   `physiology.ts`, `medicine.ts` and their tests and flags. So step 3 (per-mechanism `kernel.json`, unit 2765), steps 2b,
