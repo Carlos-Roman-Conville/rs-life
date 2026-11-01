@@ -77,8 +77,7 @@ metre, J/(kg m), for walking and running separately.
   one secondary source only.
 - Walking polynomial: **null**. The walking coefficients are not printed in any source I could read as text (the paper
   PDFs were compressed binaries my tools could not decode). Walking anchors that two secondary summaries agree on:
-  cost at i = +0.45 is 17.33 J/(kg m) (S7), and level walking about 1.64 J/(kg m) (S7; this does not match the
-  constant I half-remember for the polynomial, so the figure and the polynomial need the paper). The cost at i = -0.45
+  cost at i = +0.45 is 17.33 J/(kg m) (S7), and level walking about 1.64 J/(kg m) (S7; the polynomial needs the paper). The cost at i = -0.45
   is listed as 3.46 in one place and 3.92 in another.
 - Shape, from sources that agree: cost falls on shallow descents, reaches a minimum around -10% to -20% grade, and
   rises on steeper descents (S1 summary text; S2; S6). Margaria's older figure for the minimum is -10% (search summary).

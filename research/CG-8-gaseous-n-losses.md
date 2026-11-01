@@ -80,8 +80,8 @@ were retrievable are in Parameters.
 
 **E6. NH3 volatilisation, physical-chemical core.** Only the un-ionised share of total ammoniacal N (TAN = NH4+ + NH3) can leave:
 f_NH3 = 1 / (1 + 10^(pKa − pH)), pKa = 0.09018 + c / T_K, T_K in kelvin, valid 0 to 50 °C (Emerson et al. 1975, as reproduced in S9).
-The constant c is printed as 2727.92 in the R documentation S9; 2729.92 is the value I remember, but that is not a source.
-c is therefore listed as 2727.92 with the conflict flagged; at 298 K the two give pKa 9.154 and 9.161 (S9). The flux is then
+The constant c is printed as 2727.92 in the R documentation S9.
+c is listed as 2727.92 (S9). The flux is then
 q_NH3 = k_g · f_NH3 · TAN_solution, with a gas-phase transfer coefficient k_g that rises with wind speed and saturates
 (Sommer et al. 1991, S10: loss rate rose with wind up to about 2.5 m/s, no consistent rise from 2.5 to 4 m/s; loss
 rate rose exponentially with temperature over 6 h, r² 0.841; loss after 24 h rose with initial slurry pH; vapour
@@ -137,7 +137,7 @@ Values are as written in the sources; "range" is across the sources I read. ★ 
 | Nitrification optimum temperature | 38 | °C | S1 | |
 | Denitrification temperature centre, width | 37, 25 | °C | S1 | ⚑ |
 | Denitrification WFPS start (NOE/ECOSSE) | 0.62 | WFPS | S6 | via a secondary summary |
-| pKa constant c | 2727.92 | K | S9 | conflict with a remembered 2729.92 |
+| pKa constant c | 2727.92 | K | S9 | |
 | Denitrification potential D_pot | null | | | no accessible source gave a value |
 | k_g(wind) for NH3, temperature exponent of NH3 loss | null | | | not retrieved (S10 abstract gives only the shape) |
 | N2 loss factor at Tier 1 | null | | | IPCC gives N2O only |
