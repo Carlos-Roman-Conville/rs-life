@@ -169,6 +169,17 @@ describe("energy enters absorbed (CG-13)", () => {
     expect(keptKcal + wasteJ / KCAL_J).toBeCloseTo(eatenKcal, 9);
     expect(x.w.trace.into("body", "energy:chemical")).toBeCloseTo(keptKcal * KCAL_J, 9);
   });
+
+  it("sends no energy to waste from a healthy body, because kcalPerKg is Atwater metabolisable energy (5256)", () => {
+    const x = build();
+    const items = [{ food: "salt-beef", kg: 0.3 }, { food: "ships-biscuit", kg: 0.4 }];
+    const eatenKcal = items.reduce((a, i) => a + foodRow(i.food).kcalPerKg * i.kg, 0);
+    eatMeal(x.w, "body", items);
+    const wasteJ = x.w.trace.transfers.filter(f => f.from === "food" && f.to === "waste" && f.quantity === "energy:chemical")
+      .reduce((a, f) => a + f.amount, 0);
+    expect(wasteJ).toBe(0);
+    expect(x.w.trace.into("body", "energy:chemical")).toBeCloseTo(eatenKcal * KCAL_J, 9);
+  });
 });
 
 describe("deficiency", () => {
