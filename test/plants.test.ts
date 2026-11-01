@@ -17,13 +17,16 @@ function appliesToSpecies(applies: string, tags: Set<string>): boolean {
 describe("plants library", () => {
   it("loads schema and four species tables", () => {
     const tables = libraryTables("plants");
-    expect(tables.sort()).toEqual([
-      "rhizophora_mangle",
-      "saccharum_officinarum",
-      "schema",
-      "swietenia_mahagoni",
-      "thalassia_testudinum",
-    ]);
+    // research units add tables (forms, pollinators, fixture sites); require the scaffold's five (2943)
+    expect(tables).toEqual(
+      expect.arrayContaining([
+        "rhizophora_mangle",
+        "saccharum_officinarum",
+        "schema",
+        "swietenia_mahagoni",
+        "thalassia_testudinum",
+      ]),
+    );
     for (const t of tables) {
       expect(libraryTable("plants", t).length, t).toBeGreaterThan(0);
     }
