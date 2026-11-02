@@ -23,6 +23,7 @@ export * from "./anatomy.ts";
 export * from "./muscular.ts";
 export * from "./medicine.ts";
 export * from "./ecology.ts";
+export * from "./soils.ts";
 export * from "./population.ts";
 export * from "./labour-intentions.ts";
 export * from "./lab/still.ts";

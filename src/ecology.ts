@@ -1,10 +1,11 @@
 /** ECOLOGY.md from the library's `ecology` tables: the logistic stock model with its depletion rules (`depletion_rules`) and
- * the soil fertility index (`soil`). The host supplies every stock and field (r, K, q, demand are its own rows: the Caribbean
+ * the soil nutrient ledger (`nutrient_removal`). The host supplies every stock and field (r, K, q and soil pools: the Caribbean
  * grounds stay in the game). Time is days. A stock's growth enters from `environment` and a catch leaves to `catch`, both
  * traced, and the step checks stock = before + growth - catch. Numbers the tables do not carry are in FLAGS.md.
  */
 import { libraryRow } from "./library.ts";
 import type { Trace } from "./trace.ts";
+import { SoilCell, NutrientLedger, NUTRIENTS, poolPerArea, transferNutrients, type NutrientAmounts } from "./soils.ts";
 
 const DAY = 86400;
 const YEAR = 365;
@@ -121,11 +122,20 @@ export function stockOutputs(s: Stock) {
 
 // ---------------------------------------------------------------- soil
 
-export interface Field { id: string; f: number }
-/** Fertility is an index of 0 to 1 (the soil table's own range). */
+export interface Field {
+  readonly id: string;
+  readonly cell: SoilCell;
+  readonly ledger: NutrientLedger;
+  readonly f0: number;
+  readonly pool0: Readonly<NutrientAmounts>;
+  readonly f: number;
+}
+/** Only the display index is clamped; elemental pools never are. Level 4 estimate:
+ * gears/soil-fertility-index.md. */
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 
-/** The drain per harvest of each crop, read from the row ("cane 0.06, ... pease -0.02 i.e. restores"). */
+/** Former values only, retained for callers inspecting the superseded library row.
+ * @deprecated Harvest uses nutrientRemoval, never this index drain. */
 export function cropDemand(): Record<string, number> {
   const text = soilRow("fertility-drain-per-harvest");
   const out: Record<string, number> = {};
@@ -134,37 +144,77 @@ export function cropDemand(): Record<string, number> {
   return out;
 }
 
-function move(trace: Trace | undefined, field: Field, process: string, delta: number, day: number) {
-  if (!trace || delta === 0) return;
-  trace.record({ t: day * DAY, process, quantity: `fertility:${field.id}`, from: delta < 0 ? field.id : "soil-inputs", to: delta < 0 ? "crop" : field.id, amount: Math.abs(delta) });
-}
-/** Applies a change to f, clamped to [0, 1]; returns the change that landed. Traced, balance checked. */
-function applyFertility(field: Field, delta: number, process: string, trace?: Trace, day = 0): number {
-  const before = field.f;
-  field.f = clamp01(before + delta);
-  const landed = field.f - before;
-  move(trace, field, process, landed, day);
-  trace?.check(day * DAY, `fertility:${field.id}`, before + landed, field.f, 1e-12);
-  return landed;
-}
-
-export const createField = (id: string, f: number): Field => {
+/** Host supplies the cell and may share a funded ledger. Default ledger has no inputs.
+ * Positive reference pools are required to define pool/pool0; a depleted cell can be
+ * reached through transfers after creation. f0 = 0 gives a permanently zero index. */
+export function createField(id: string, f: number, cell: SoilCell, ledger = new NutrientLedger()): Field {
   if (!(f >= 0 && f <= 1)) throw new Error("ecology: fertility must be in [0, 1]");
-  return { id, f };
+  const pool0 = Object.freeze({ ...cell.pool });
+  if (NUTRIENTS.some(el => pool0[el] <= 0)) throw new Error("ecology: reference nutrient pools must be positive");
+  return Object.freeze({ id, cell, ledger, f0: f, pool0,
+    get f() { return clamp01(f * Math.min(...NUTRIENTS.map(el => cell.pool[el] / pool0[el]))); } });
+}
+
+/** Clearing forest assigns the row's f = 0.9 to the host's existing stock, without adding mass. */
+export const clearForest = (id: string, cell: SoilCell, ledger?: NutrientLedger): Field =>
+  createField(id, figure(soilRow("deforestation"), /f = ([\d.]+)/, "the new-field fertility"), cell, ledger);
+
+const cropRows: Record<string, string> = {
+  cane: "sugarcane-howeler", tobacco: "tobacco-howeler", maize: "maize-howeler",
+  cassava: "cassava-howeler", pease: "field-pea-mpsg",
 };
+/** Explicit row ids (or slugs) select other measurements; legacy crop names use the
+ * documented defaults. No fixed-N credit is invented for legumes (CG-7). */
+export function nutrientRemoval(crop: string): NutrientAmounts {
+  return nutrientFigures("nutrient_removal", cropRows[crop] ?? crop);
+}
+function nutrientFigures(table: string, row: string): NutrientAmounts {
+  const id = row.startsWith(`ecology.${table}.`) ? row : `ecology.${table}.${row}`;
+  const values = libraryRow("ecology", table, id);
+  const result = { N: 0, P: 0, K: 0 };
+  for (const el of NUTRIENTS) {
+    const value = values[`${el} kg/t`];
+    if (typeof value !== "number" || !Number.isFinite(value) || value < 0)
+      throw new Error(`ecology: missing/invalid ${el} removal or content figure in row ${id}`);
+    result[el] = value;
+  }
+  return result;
+}
+function nonnegative(value: number, name: string): void {
+  if (!Number.isFinite(value) || value < 0) throw new Error(`ecology: ${name} must be finite and non-negative`);
+}
 
-/** Clearing forest gives a new field f = 0.9 (the row). */
-export const clearForest = (id: string): Field => createField(id, figure(soilRow("deforestation"), /f = ([\d.]+)/, "the new-field fertility"));
-
-export interface Harvest { yield: number; drain: number }
-/** A harvest: yield = maxYield x (0.3 + 0.7 f) x rain x labour (read before the drain), then f -= demand of the crop.
- * The rain and labour factors are the host's; `dryYearFactor` gives the soil row's one rain figure. */
-export function harvest(field: Field, crop: string, maxYield: number, rainFactor: number, labourFactor: number, trace?: Trace, day = 0): Harvest {
-  const demand = cropDemand()[crop];
-  if (demand === undefined) throw new Error(`ecology: no demand row for crop ${crop}`);
-  const y = maxYield * (0.3 + 0.7 * field.f) * rainFactor * labourFactor;
-  const landed = applyFertility(field, -demand, "ecology.soil.harvest", trace, day);
-  return { yield: y, drain: -landed };
+export interface Harvest {
+  yield: number;
+  /** Change in the derived index, retained for compatibility; never a second debit. */
+  drain: number;
+  /** Nutrients exported in the yield (kg), soil debits (kg), and unmet soil demand (kg). */
+  removal: NutrientAmounts;
+  transferred: NutrientAmounts;
+  shortfall: NutrientAmounts;
+}
+/** yield = maxYield x (0.3 + 0.7 f) x rain x labour, reading f before any transfer.
+ * Host yields are tonnes of the harvested part on the selected nutrient_removal row's
+ * basis (fresh stalk/root or dry grain/leaf), over this whole cell, not tonnes/ha.
+ * uptakeByPlant means Life already debited uptake through transferNutrient; plant-to-crop
+ * export is outside this soil ledger. Otherwise all elements move in one atomic batch. */
+export function harvest(field: Field, crop: string, maxYield: number, rainFactor: number, labourFactor: number,
+  trace?: Trace, day = 0, opts: { uptakeByPlant?: boolean } = {}): Harvest {
+  const rates = nutrientRemoval(crop);
+  nonnegative(maxYield, "maxYield"); nonnegative(rainFactor, "rainFactor"); nonnegative(labourFactor, "labourFactor");
+  const before = field.f;
+  const y = maxYield * (0.3 + 0.7 * before) * rainFactor * labourFactor;
+  const removal = { N: 0, P: 0, K: 0 }, transferred = { N: 0, P: 0, K: 0 }, shortfall = { N: 0, P: 0, K: 0 };
+  for (const el of NUTRIENTS) {
+    removal[el] = y * rates[el];
+    nonnegative(removal[el], `${el} removal`);
+    if (!opts.uptakeByPlant) {
+      transferred[el] = Math.min(removal[el], field.cell.pool[el]);
+      shortfall[el] = removal[el] - transferred[el];
+    }
+  }
+  if (!opts.uptakeByPlant) transferNutrients(field.cell, transferred, `crop:${field.id}`, "ecology.soil.harvest", field.ledger, trace, day * DAY);
+  return { yield: y, drain: before - field.f, removal, transferred, shortfall };
 }
 
 /** A dry year (rain under 60% of normal) halves yields; otherwise the table has no rain factor: null, the host's. */
@@ -174,26 +224,49 @@ export function dryYearFactor(rainFraction: number): number | null {
   return rainFraction < limit ? 0.5 : null;
 }
 
-/** Manure: f += 0.03 per 10 t/ha of dung. */
-export function manure(field: Field, tonnesPerHa: number, trace?: Trace, day = 0): number {
-  const text = soilRow("manure");
-  const per = figure(text, /f \+= ([\d.]+) per/, "the manure gain");
-  const unit = figure(text, /per (\d+) t\/ha/, "the manure unit");
-  return applyFertility(field, per * tonnesPerHa / unit, "ecology.soil.manure", trace, day);
+/** Apply whole-cell tonnes of fresh manure, debiting the host-funded manure account.
+ * Default: Purdue beef-open-concrete-lot; opts.row selects another manure_nutrients row.
+ * No implicit availability/loss fraction: explicit losses need their own transfer.
+ * Returns the kg added; all mass remains even when the display index reaches 1. */
+export function manure(field: Field, tonnes: number, trace?: Trace, day = 0,
+  opts: { row?: string } = {}): NutrientAmounts {
+  nonnegative(tonnes, "manure tonnes");
+  const rates = nutrientFigures("manure_nutrients", opts.row ?? "beef-open-concrete-lot");
+  const quantities = { N: tonnes * rates.N, P: tonnes * rates.P, K: tonnes * rates.K };
+  transferNutrients(field.cell, quantities, "manure", "ecology.soil.manure", field.ledger, trace, day * DAY, true);
+  return quantities;
 }
 
-/** Fallow: f += 0.02 a year idle, +0.04 under bush, for `days`. */
+function slowTransfer(field: Field, rate: number, days: number, account: string, process: string,
+  intoSoil: boolean, trace?: Trace, day = 0): number {
+  nonnegative(days, "days");
+  if (field.f0 === 0) throw new Error("ecology: slow index rates require f0 > 0 for conversion to kg");
+  const before = field.f;
+  const quantities = { N: 0, P: 0, K: 0 };
+  for (const el of NUTRIENTS) quantities[el] = rate * days / YEAR * field.pool0[el] / field.f0;
+  transferNutrients(field.cell, quantities, account, process, field.ledger, trace, day * DAY, intoSoil);
+  return field.f - before;
+}
+/** Placeholder until CG-7 supplies sourced inputs: debit host-funded inputs:fallow.
+ * Table f-rate converted to kg per element using pool0/f0, at this flux's step. */
 export function fallow(field: Field, days: number, underBush = false, trace?: Trace, day = 0): number {
   const text = soilRow("fallow");
   const idle = figure(text, /f \+= ([\d.]+) a year idle/, "the idle fallow gain");
   const bush = figure(text, /\+([\d.]+) under bush/, "the bush fallow gain");
-  return applyFertility(field, (underBush ? bush : idle) * days / YEAR, "ecology.soil.fallow", trace, day);
+  return slowTransfer(field, underBush ? bush : idle, days, "inputs:fallow", "ecology.soil.fallow", true, trace, day);
 }
-
-/** Erosion on a cleared slope: f -= 0.02 a year extra, for `days`. */
+/** Placeholder until realism.terrain.nutrient_transport: table slope rate in kg,
+ * transferred to loss:erosion. An overdraw refuses the entire batch, never clamps. */
 export function erode(field: Field, days: number, trace?: Trace, day = 0): number {
   const per = figure(soilRow("deforestation"), /f -= ([\d.]+) a year extra/, "the slope erosion");
-  return applyFertility(field, -per * days / YEAR, "ecology.soil.deforestation", trace, day);
+  return slowTransfer(field, per, days, "loss:erosion", "ecology.soil.deforestation", false, trace, day);
 }
 
-export const soilOutputs = (field: Field) => ({ "ecology.soil.yield": 0.3 + 0.7 * field.f, "ecology.soil.fertility": field.f });
+export function soilOutputs(field: Field): Record<string, number> {
+  const out: Record<string, number> = { "ecology.soil.yield": 0.3 + 0.7 * field.f, "ecology.soil.fertility": field.f };
+  for (const el of NUTRIENTS) {
+    out[`ecology.soil.${el}.kg`] = field.cell.pool[el];
+    out[`ecology.soil.${el}.kg/m2`] = poolPerArea(field.cell, el);
+  }
+  return out;
+}

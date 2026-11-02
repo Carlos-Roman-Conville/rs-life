@@ -23,7 +23,7 @@
     "source": "A fertility index per field (0 to 1) drained by each crop's demand and restored by manure, fallow and legumes; Barbados exhaustion and the planters' manuring response are the historical anchor (ECO-SOIL). Numbers are placeholders.",
     "columns": ["id", "Rule", "Formula", "Mark", "source"],
     "rows": [
-      ["ecology.soil.fertility-drain-per-harvest", "Fertility drain per harvest", "f -= demand (cane 0.06, tobacco 0.08, maize 0.03, cassava 0.01, pease -0.02 i.e. restores)", "proposed", "open"],
+      ["ecology.soil.fertility-drain-per-harvest", "Fertility drain per harvest", "f -= demand (cane 0.06, tobacco 0.08, maize 0.03, cassava 0.01, pease -0.02 i.e. restores); superseded by nutrient_removal (CG-20, 3001)", "proposed", "open"],
       ["ecology.soil.yield", "Yield", "yield = max yield x (0.3 + 0.7 f) x rain factor x labour factor", "proposed", "open"],
       ["ecology.soil.manure", "Manure", "f += 0.03 per 10 t/ha of dung (cattle pens next to cane fields: the Barbados practice)", "proposed", "open"],
       ["ecology.soil.fallow", "Fallow", "f += 0.02 a year idle; +0.04 under bush", "proposed", "open"],

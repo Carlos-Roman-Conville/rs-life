@@ -26,3 +26,7 @@ moves, fishing, duties) is not here; it is flagged `game content` in `flags/`.
   by the tables `muscular.groups`, `values`, `activations` and `limb_strength`.
 - `population-simulation-levels.md`: unvisited, discovered and active levels of detail
   for a settlement's cohorts. Cited by the table `population.cohorts`.
+- `soil-integration.md`: immediate kernel nutrient transfers, input/loss accounts,
+  harvest/uptake ownership and slow soil dynamics (3001).
+- `soil-fertility-index.md`: level-4 Liebig index derived from N, P and K stocks,
+  replacing the independent harvest fertility drain (3001).

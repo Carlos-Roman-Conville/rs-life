@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { NutrientLedger, SoilCell } from "../src/soils.ts";
 import { Trace } from "../src/trace.ts";
 import { clearForest, collapseYears, cropDemand, crawlFoodKg, createField, createStock, dailyCatch, dryYearFactor, erode, fallow, fishedOutCatchFactor,
   fishedOutFraction, harvest, isFishedOut, logisticYears, manure, msyPerYear, recoveryYears, stepStock, takeNestingFemales } from "../src/ecology.ts";
@@ -82,33 +83,34 @@ describe("the logistic stock", () => {
 });
 
 describe("the soil", () => {
-  it("reads the crop demands from the row, pease restoring", () => {
+  it("reads the former crop demands for historical inspection only", () => {
     expect(cropDemand()).toEqual({ cane: 0.06, tobacco: 0.08, maize: 0.03, cassava: 0.01, pease: -0.02 });
   });
 
-  it("yields max x (0.3 + 0.7 f) x rain x labour and drains the crop's demand", () => {
-    const f = createField("a", 0.9);
+  it("yields max x (0.3 + 0.7 f) x rain x labour and transfers crop nutrients", () => {
+    const f = createField("a", 0.9, new SoilCell("a", 10000, { N: 1000, P: 1000, K: 1000 }));
     const trace = new Trace();
     const h = harvest(f, "cane", 100, 1, 0.8, trace, 1);
     expect(h.yield).toBeCloseTo(100 * (0.3 + 0.7 * 0.9) * 0.8);
-    expect(f.f).toBeCloseTo(0.84);
+    expect(f.f).toBeCloseTo(0.9 * (1000 - h.yield * 1.28) / 1000);
     expect(trace.failed()).toEqual([]);
-    expect(trace.outOf("a", "fertility:a")).toBeCloseTo(0.06);
-    harvest(f, "pease", 10, 1, 1);
-    expect(f.f).toBeCloseTo(0.86);
+    expect(trace.outOf("soil:a", "nutrient:K")).toBeCloseTo(h.yield * 1.28);
+    const pea = harvest(f, "pease", 10, 1, 1);
+    expect(f.f).toBeCloseTo(0.9 * (1000 - h.yield * 0.57 - pea.yield * 39) / 1000);
   });
 
   it("restores by manure and fallow and loses on slopes; the index stays in [0, 1]", () => {
-    const f = createField("a", 0.5);
-    expect(manure(f, 20)).toBeCloseTo(0.06);
+    const ledger = new NutrientLedger({ manure: { N: 1000, P: 1000, K: 1000 }, "inputs:fallow": { N: 1000, P: 1000, K: 1000 } });
+    const f = createField("a", 0.5, new SoilCell("a", 10000, { N: 1000, P: 1000, K: 1000 }), ledger);
+    expect(manure(f, 20)).toEqual({ N: 110, P: 30.6, K: 83 });
     expect(fallow(f, 365)).toBeCloseTo(0.02);
     expect(fallow(f, 365, true)).toBeCloseTo(0.04);
     expect(erode(f, 365)).toBeCloseTo(-0.02);
-    expect(f.f).toBeCloseTo(0.5 + 0.06 + 0.02 + 0.04 - 0.02);
-    const full = createField("b", 0.99);
-    expect(manure(full, 100)).toBeCloseTo(0.01);
+    expect(f.f).toBeCloseTo(0.5 * (1 + 30.6 / 1000) + 0.02 + 0.04 - 0.02);
+    const full = createField("b", 0.99, new SoilCell("b", 10000, { N: 1000, P: 1000, K: 1000 }), ledger);
+    expect(manure(full, 100)).toEqual({ N: 550, P: 153, K: 100 * 4.15 });
     expect(full.f).toBe(1);
-    expect(clearForest("n").f).toBe(0.9);
+    expect(clearForest("n", new SoilCell("n", 10000, { N: 1000, P: 1000, K: 1000 })).f).toBe(0.9);
   });
 
   it("halves yields in a dry year and leaves other rain to the host", () => {
