@@ -85,8 +85,9 @@ describe("comparison snapshots", () => {
       return canonical(snapshotWorld(w, sch));
     };
     expect(run()).toBe(run());
-  }, 30000);
+  }, 120000);
 
+  // (5458) 120 s guard: 26 s idle, 38 s seen under lane contention (I-1050); not a model tolerance.
   it("replaying human-wound from the initial state with the same seed gives canonical-equal snapshots", () => {
     const run = () => {
       const { week, medicine } = runWoundVariant("bound-after-hour", WOUND_FIXTURE.seed);
@@ -96,5 +97,5 @@ describe("comparison snapshots", () => {
       return canonical(snapshotWorld(week.w));
     };
     expect(run()).toBe(run());
-  }, 30000);
+  }, 120000);
 });
