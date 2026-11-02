@@ -400,6 +400,23 @@
       "order": "insertion"
     },
     {
+      "id": "realism.ecology.soils",
+      "mechanisms": [
+        "realism.terrain.soils",
+        "realism.eco.soil_fertility"
+      ],
+      "writes": [
+        "world.soil_n",
+        "world.soil_p",
+        "world.soil_k",
+        "stock.f"
+      ],
+      "reads": [],
+      "period": 10000,
+      "phase": "fast",
+      "order": "insertion"
+    },
+    {
       "id": "realism.process.combustion",
       "mechanisms": [
         "realism.chem.carbon_combustion_charcoal"
@@ -644,6 +661,34 @@
       "quantity": "component.heat",
       "kind": "quantity",
       "unit": "J",
+      "direction": "output"
+    },
+    {
+      "mechanism": "realism.terrain.soils",
+      "quantity": "world.soil_n",
+      "kind": "quantity",
+      "unit": "kg",
+      "direction": "output"
+    },
+    {
+      "mechanism": "realism.terrain.soils",
+      "quantity": "world.soil_p",
+      "kind": "quantity",
+      "unit": "kg",
+      "direction": "output"
+    },
+    {
+      "mechanism": "realism.terrain.soils",
+      "quantity": "world.soil_k",
+      "kind": "quantity",
+      "unit": "kg",
+      "direction": "output"
+    },
+    {
+      "mechanism": "realism.eco.soil_fertility",
+      "quantity": "stock.f",
+      "kind": "quantity",
+      "unit": "1",
       "direction": "output"
     }
   ],
