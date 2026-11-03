@@ -1,8 +1,12 @@
-/** Daily, isolated physiology. No world writes; parameters and supported forms are explicit data. */
+/** Plant physiology and resolution; parameters and supported forms are explicit data. */
+import { SECOND, transaction, transfer } from "@rex/kernel";
 import { libraryTable } from "./library.ts";
 import type { LibraryRow } from "./library.ts";
-import { createTissuePopulation, organAggregate, stepTissue } from "./tissue.ts";
+import { createTissuePopulation, mergeRegions, organAggregate, splitRegions, stepTissue } from "./tissue.ts";
 import type { TissuePopulation } from "./tissue.ts";
+import { NutrientLedger, SoilCell, transferNutrient } from "./soils.ts";
+import type { Nutrient, NutrientAmounts } from "./soils.ts";
+import { Trace } from "./trace.ts";
 
 export class PlantParameterError extends Error {
   constructor(fields: readonly string[]) { super(`plant: missing or invalid species values: ${fields.join(", ")}`); this.name = "PlantParameterError"; }
@@ -98,6 +102,10 @@ export interface PlantEnvironment {
 }
 
 export interface PlantInit {
+  /** Host identities are required for resolution changes and soil integration. */
+  id?: string;
+  region?: string;
+  speciesId?: string;
   cultivar: string | null;
   variants: Readonly<Record<string, string | number | boolean | null>>;
   ageDays: number;
@@ -129,6 +137,9 @@ export interface PlantFluxes {
 }
 interface Inventory { carbon: number; water: number; nutrients: NutrientValues }
 export interface Plant {
+  id: string | null;
+  region: string | null;
+  species: string | null;
   genetic: { readonly cultivar: string | null; readonly variants: Readonly<Record<string, string | number | boolean | null>> };
   developmental: {
     ageDays: number;
@@ -151,7 +162,7 @@ export interface Plant {
   parameters: Readonly<Record<string, string | number | boolean | null>>;
   forms: PlantForms;
   groundAreaM2: number;
-  ledger: { initial: Inventory; totals: PlantFluxes };
+  ledger: { initial: Inventory; totals: PlantFluxes; notes: { t: number; text: string }[] };
 }
 
 function zeroFlux(): PlantFluxes {
@@ -249,13 +260,15 @@ export function createPlant(speciesTable: string | readonly LibraryRow[], init: 
     return [o, { populations }];
   })) as Plant["developmental"]["organs"];
   const plant: Plant = {
+    id: init.id ?? null, region: init.region ?? null,
+    species: init.speciesId ?? (typeof speciesTable === "string" ? speciesTable : null),
     genetic: Object.freeze({ cultivar: init.cultivar, variants: Object.freeze({ ...init.variants }) }),
     developmental: { ageDays: init.ageDays, organs: organState, leafAreaM2: 0, reserveKg: init.reserveKg,
       heightM: null, stemDiameterCm: null, maturity: "juvenile" },
     organism: { waterStatus: init.waterStatus, waterKg: init.waterKg, nutrientsKg: emptyNutrients(),
       tissueFractions: { ...init.tissueFractions }, accumulatedStressDays: 0, alive: true, cause: null },
     parameters: Object.freeze(parameters), forms, groundAreaM2: init.groundAreaM2,
-    ledger: { initial: { carbon: 0, water: 0, nutrients: emptyNutrients() }, totals: zeroFlux() },
+    ledger: { initial: { carbon: 0, water: 0, nutrients: emptyNutrients() }, totals: zeroFlux(), notes: [] },
   };
   for (const n of nutrients) plant.organism.nutrientsKg[n] = liveMass(plant) * p(`critical_${n}`) / 100 * init.tissueFractions[n];
   refresh(plant);
@@ -269,6 +282,201 @@ export function clonePlant(parent: Plant): Plant {
   clone.genetic = parent.genetic;
   clone.parameters = parent.parameters;
   return clone;
+}
+
+/** A fresh read, including the existing carbohydrate reserve; never an integrated stock. */
+export function vegetationStock(records: readonly Plant[], region: string): {
+  organsKg: OrganValues; reserveKg: number; totalKg: number;
+} {
+  const organsKg: OrganValues = { leaf: 0, stem: 0, root: 0, rhizome: 0 };
+  let reserveKg = 0;
+  for (const record of records.filter(p => p.region === region)) {
+    const mass = plantOrganMasses(record);
+    for (const o of organs) organsKg[o] += mass[o];
+    reserveKg += record.developmental.reserveKg;
+  }
+  return { organsKg, reserveKg, totalKg: Object.values(organsKg).reduce((a, b) => a + b, reserveKg) };
+}
+
+function identified(plant: Plant): void {
+  if (!plant.id?.trim() || !plant.region?.trim() || !plant.species?.trim())
+    throw new Error("plant: host id, region and species identity required");
+}
+
+/** All extensive values outside tissue populations, including accounting history. */
+function mapPools(target: Plant, sources: readonly Plant[], combine: (values: number[]) => number): void {
+  target.groundAreaM2 = combine(sources.map(p => p.groundAreaM2));
+  target.developmental.reserveKg = combine(sources.map(p => p.developmental.reserveKg));
+  target.organism.waterKg = combine(sources.map(p => p.organism.waterKg));
+  for (const n of nutrients) {
+    target.organism.nutrientsKg[n] = combine(sources.map(p => p.organism.nutrientsKg[n]));
+    target.ledger.initial.nutrients[n] = combine(sources.map(p => p.ledger.initial.nutrients[n]));
+    target.ledger.totals.nutrientsTakenKg[n] = combine(sources.map(p => p.ledger.totals.nutrientsTakenKg[n]));
+  }
+  for (const key of ["carbon", "water"] as const)
+    target.ledger.initial[key] = combine(sources.map(p => p.ledger.initial[key]));
+  for (const key of ["grossDryMassKg", "co2TakenKgC", "co2ReleasedKgC", "o2ReleasedKg", "waterTakenKg", "waterTranspiredKg"] as const)
+    target.ledger.totals[key] = combine(sources.map(p => p.ledger.totals[key]));
+  for (const o of organs) {
+    for (const key of ["dryMassKg", "carbonKg"] as const)
+      target.ledger.totals.litter[o][key] = combine(sources.map(p => p.ledger.totals.litter[o][key]));
+    for (const n of nutrients)
+      target.ledger.totals.litter[o].nutrientsKg[n] = combine(sources.map(p => p.ledger.totals.litter[o].nutrientsKg[n]));
+  }
+}
+
+function resolutionNote(plant: Plant, text: string, trace: Trace | undefined, t: number): void {
+  plant.ledger.notes.push({ t, text });
+  trace?.note(t, text);
+}
+
+/** Replace the input records with the result in the host registry (do not retain both resolutions).
+ * Tissue states follow mergeRegions; organism age/stress/water status use ground-area means.
+ * Distinct genotypes, forms or life/death states cannot be represented by this single record. */
+export function coarsen(records: readonly Plant[], trace?: Trace, t = 0): Plant {
+  if (!records.length) throw new Error("plant: no records to coarsen");
+  records.forEach(identified);
+  if (new Set(records.map(p => p.id)).size !== records.length) throw new Error("plant: duplicate record id");
+  const first = records[0];
+  for (const p of records) {
+    if (p.region !== first.region || p.species !== first.species ||
+      JSON.stringify(p.parameters) !== JSON.stringify(first.parameters) ||
+      JSON.stringify(p.genetic) !== JSON.stringify(first.genetic) ||
+      JSON.stringify(p.forms) !== JSON.stringify(first.forms) ||
+      p.organism.alive !== first.organism.alive || p.organism.cause !== first.organism.cause ||
+      p.developmental.heightM !== first.developmental.heightM || p.developmental.stemDiameterCm !== first.developmental.stemDiameterCm)
+      throw new Error("plant: incompatible records to coarsen");
+    finite("groundAreaM2", p.groundAreaM2, Number.MIN_VALUE);
+  }
+  const result = clonePlant(first);
+  result.id = `coarse:${JSON.stringify(records.map(p => p.id).sort())}`;
+  mapPools(result, records, xs => xs.reduce((a, b) => a + b, 0));
+  const mean = (get: (p: Plant) => number): number => records.reduce((sum, p) => sum + get(p) * p.groundAreaM2, 0) / result.groundAreaM2;
+  result.developmental.ageDays = mean(p => p.developmental.ageDays);
+  result.organism.accumulatedStressDays = mean(p => p.organism.accumulatedStressDays);
+  result.organism.waterStatus = mean(p => p.organism.waterStatus);
+  for (const key of Object.keys(result.ledger.totals.factors) as (keyof PlantFluxes["factors"])[])
+    result.ledger.totals.factors[key] = mean(p => p.ledger.totals.factors[key]);
+  for (const o of organs) {
+    const groups = new Map<string, TissuePopulation[]>();
+    for (const p of records) for (const pop of p.developmental.organs[o].populations) {
+      const key = JSON.stringify([pop.id, pop.cellType, pop.region ?? null]);
+      const group = groups.get(key) ?? [];
+      group.push(pop); groups.set(key, group);
+    }
+    result.developmental.organs[o].populations = [...groups.values()].map(group => ({
+      ...mergeRegions(group), region: group[0].region,
+    }));
+  }
+  result.ledger.notes = records.flatMap(p => p.ledger.notes.map(note => ({ ...note })));
+  refresh(result);
+  resolutionNote(result, `plant.coarsen: ${records.map(p => p.id).join(", ")} -> ${result.id}; representation only`, trace, t);
+  return result;
+}
+
+/** Positive shares name child records, not new places. The last child receives roundoff remainders. */
+export function refine(record: Plant, shares: Readonly<Record<string, number>>, trace?: Trace, t = 0): Plant[] {
+  identified(record);
+  finite("groundAreaM2", record.groundAreaM2, Number.MIN_VALUE);
+  const entries = Object.entries(shares);
+  if (!entries.length || entries.some(([id, share]) => !id.trim() || !Number.isFinite(share) || share <= 0 || share > 1) ||
+    Math.abs(entries.reduce((sum, [, share]) => sum + share, 0) - 1) > 1e-12)
+    throw new Error("plant: positive refinement shares must sum to one");
+  const remaining = clonePlant(record);
+  const children = entries.map(([id, share], i) => {
+    const child = clonePlant(record);
+    child.id = `${record.id}/${id}`;
+    mapPools(child, [record, remaining], ([whole, rest]) => i === entries.length - 1 ? rest : Math.min(rest, whole * share));
+    if (child.groundAreaM2 <= 0) throw new Error("plant: refinement shares leave an empty ground area");
+    mapPools(remaining, [remaining, child], ([rest, part]) => rest - part);
+    return child;
+  });
+  for (const o of organs) {
+    const splits = record.developmental.organs[o].populations.map(pop => splitRegions(pop, shares));
+    children.forEach((child, i) => {
+      child.developmental.organs[o].populations = splits.map((split, j) => ({
+        ...split[i], region: record.developmental.organs[o].populations[j].region,
+      }));
+    });
+  }
+  for (const child of children) {
+    refresh(child);
+    resolutionNote(child, `plant.refine: ${record.id} -> ${child.id}; representation only`, undefined, t);
+  }
+  trace?.note(t, `plant.refine: ${record.id} -> ${children.map(p => p.id).join(", ")}; representation only`);
+  return children;
+}
+
+const soilElement: Record<PlantNutrient, Nutrient> = { n: "N", p: "P", k: "K" };
+
+/** A destination adapter, not a second account: the kernel credit writes tissue itself.
+ * The host NutrientLedger continues to hold only non-plant accounts. */
+class PlantNutrientAccount extends NutrientLedger {
+  readonly plant: Plant;
+  constructor(plant: Plant, ledger: NutrientLedger) {
+    identified(plant);
+    super({}, ledger.journal, `plant-tissue:${plant.id}`);
+    this.plant = plant;
+    if (nutrients.some(n => ledger.balance(`plant:${plant.id}`, soilElement[n]) !== 0))
+      throw new Error("plant: duplicate plant stock in host nutrient ledger");
+  }
+  override unit(account: string, quantity: string): string {
+    if (account !== `plant:${this.plant.id}`) throw new Error("plant: unknown tissue account");
+    return super.unit(account, quantity);
+  }
+  override balance(account: string, el: Nutrient): number {
+    this.unit(account, `nutrient:${el}`);
+    return this.plant.organism.nutrientsKg[el.toLowerCase() as PlantNutrient];
+  }
+  override total(el: Nutrient): number { return this.balance(`plant:${this.plant.id}`, el); }
+  override apply(account: string, quantity: string, delta: number): void {
+    this.unit(account, quantity);
+    const n = quantity.slice("nutrient:".length).toLowerCase() as PlantNutrient;
+    this.plant.organism.nutrientsKg[n] = finite("tissue nutrient balance", this.plant.organism.nutrientsKg[n] + delta);
+  }
+  override snapshot(): Map<string, NutrientAmounts> {
+    return new Map([[`plant:${this.plant.id}`, { N: this.total("N"), P: this.total("P"), K: this.total("K") }]]);
+  }
+  override restore(snapshot: unknown): void {
+    const pool = (snapshot as Map<string, NutrientAmounts>).get(`plant:${this.plant.id}`)!;
+    this.plant.organism.nutrientsKg = { n: pool.N, p: pool.P, k: pool.K };
+  }
+}
+
+function appendTrace(target: Trace | undefined, pending: Trace): void {
+  if (!target) return;
+  for (const entry of pending.transfers) target.record(entry);
+  for (const check of pending.checks) target.check(check.t, check.quantity, check.expected, check.actual, check.tolerance);
+}
+
+/** One immediate soil debit/tissue credit per nonzero element; all elements roll back on refusal.
+ * Call with a new uptake flux, never reapply a flux returned by an already integrated step. */
+export function plantUptake(cell: SoilCell, plant: Plant, fluxes: Pick<PlantFluxes, "nutrientsTakenKg">,
+  ledger: NutrientLedger, trace?: Trace, t = 0): void {
+  const tissue = new PlantNutrientAccount(plant, ledger), pending = new Trace();
+  transaction([cell, tissue, ledger.journal], () => {
+    for (const n of nutrients)
+      transferNutrient(cell, soilElement[n], fluxes.nutrientsTakenKg[n], `plant:${plant.id}`, "plant.uptake", tissue, pending, t);
+  });
+  for (const n of nutrients) plant.ledger.totals.nutrientsTakenKg[n] += fluxes.nutrientsTakenKg[n];
+  refresh(plant);
+  appendTrace(trace, pending);
+}
+
+export interface PlantSoilStep {
+  cell: SoilCell;
+  ledger: NutrientLedger;
+  trace?: Trace;
+  /** Flux time in seconds, like the soil API. */
+  t: number;
+}
+
+function litterTransfer(plant: Plant, n: PlantNutrient, q: number, soil: PlantSoilStep): void {
+  if (q === 0) return;
+  const tissue = new PlantNutrientAccount(plant, soil.ledger), quantity = `nutrient:${soilElement[n]}`;
+  transfer(soil.ledger.journal, { t: soil.t * SECOND, process: "plant.litter", quantity, unit: "kg", amount: q,
+    from: { ledger: tissue, account: `plant:${plant.id}` }, to: { ledger: soil.ledger, account: "detritus" } });
+  soil.trace?.record({ t: soil.t, process: "plant.litter", quantity, amount: q, from: `plant:${plant.id}`, to: "detritus" });
 }
 
 function environment(env: PlantEnvironment, key: Exclude<keyof PlantEnvironment, "soilWater">, min = 0): number {
@@ -321,28 +529,41 @@ function allocate(plant: Plant, organ: PlantOrganName, mass: number): void {
   });
 }
 
-function removeNutrients(plant: Plant, mass: number, concentration: NutrientValues, litter: PlantLitter): void {
+function removeNutrients(plant: Plant, mass: number, concentration: NutrientValues, litter: PlantLitter, soil?: PlantSoilStep): void {
   for (const n of nutrients) {
     const out = Math.min(plant.organism.nutrientsKg[n], mass * concentration[n]);
-    plant.organism.nutrientsKg[n] -= out;
+    if (soil) litterTransfer(plant, n, out, soil);
+    else plant.organism.nutrientsKg[n] -= out;
     litter.nutrientsKg[n] += out;
   }
 }
 
 /** One explicit interval at constant forcing; days is not an internal subdivision or convergence claim.
  * Works on a copy first: any missing input/form leaves the caller's state and ledger unchanged. */
-export function stepPlant(plant: Plant, env: PlantEnvironment, days: number): PlantFluxes {
+export function stepPlant(plant: Plant, env: PlantEnvironment, days: number, soil?: PlantSoilStep): PlantFluxes {
   finite("days", days);
   if (days === 0 || !plant.organism.alive) return zeroFlux();
   const next = clonePlant(plant);
-  const flux = advance(next, env, days);
+  let flux: PlantFluxes;
+  if (soil) {
+    const pending = new Trace();
+    // Host supplies are kg for this record and interval. The cell also bounds them:
+    // hosts can pass poolPerArea(cell, el) * rootAreaM2 for a smaller root zone.
+    const capped = { ...env,
+      availableN: Math.min(environment(env, "availableN"), soil.cell.pool.N),
+      availableP: Math.min(environment(env, "availableP"), soil.cell.pool.P),
+      availableK: Math.min(environment(env, "availableK"), soil.cell.pool.K) };
+    flux = transaction([soil.cell, soil.ledger, soil.ledger.journal], () =>
+      advance(next, capped, days, { ...soil, trace: pending }));
+    appendTrace(soil.trace, pending);
+  } else flux = advance(next, env, days);
   plant.developmental = next.developmental;
   plant.organism = next.organism;
   plant.ledger = next.ledger;
   return flux;
 }
 
-function advance(plant: Plant, env: PlantEnvironment, days: number): PlantFluxes {
+function advance(plant: Plant, env: PlantEnvironment, days: number, soil?: PlantSoilStep): PlantFluxes {
   const p = (k: string) => param(plant, k), f = plant.forms;
   const flux = zeroFlux();
   flux.factors = factors(plant, env);
@@ -386,7 +607,11 @@ function advance(plant: Plant, env: PlantEnvironment, days: number): PlantFluxes
     for (const n of nutrients) {
       const demand = Math.max(0, liveMass(plant) * p(`critical_${n}`) / 100 - plant.organism.nutrientsKg[n]);
       flux.nutrientsTakenKg[n] = Math.min(demand, supplies[n]);
+    }
+    if (soil) plantUptake(soil.cell, plant, flux, soil.ledger, soil.trace, soil.t);
+    else for (const n of nutrients) {
       plant.organism.nutrientsKg[n] += flux.nutrientsTakenKg[n];
+      plant.ledger.totals.nutrientsTakenKg[n] += flux.nutrientsTakenKg[n];
     }
   } else {
     let debt = -net;
@@ -398,7 +623,7 @@ function advance(plant: Plant, env: PlantEnvironment, days: number): PlantFluxes
     const leafPaid = Math.min(leafMass, debt);
     leaf.forEach(pop => { pop.viableMassKg *= leafMass === 0 ? 0 : 1 - leafPaid / leafMass; });
     // Oxidised tissue's N/P/K becomes nutrient residue in litter; its C is respiration, not litter C.
-    removeNutrients(plant, leafPaid, concentration, flux.litter.leaf);
+    removeNutrients(plant, leafPaid, concentration, flux.litter.leaf, soil);
     flux.co2ReleasedKgC = (flux.grossDryMassKg + reservePaid + leafPaid) * carbon;
   }
   // Water-use efficiency in g dry mass/kg water; gross assimilation defines this interval's demand.
@@ -413,7 +638,7 @@ function advance(plant: Plant, env: PlantEnvironment, days: number): PlantFluxes
       const loss = stepTissue(pop, days, { injuryRate: null, repairRate: null, matrixChangeRate: null }).deadMassKg;
       flux.litter[o].dryMassKg += loss;
       flux.litter[o].carbonKg += loss * carbon;
-      removeNutrients(plant, loss, turnoverConcentration, flux.litter[o]);
+      removeNutrients(plant, loss, turnoverConcentration, flux.litter[o], soil);
     }
   }
   if (plant.developmental.reserveKg === 0 && plantOrganMasses(plant).leaf === 0) {
@@ -425,7 +650,7 @@ function advance(plant: Plant, env: PlantEnvironment, days: number): PlantFluxes
     for (const o of organs) for (const pop of plant.developmental.organs[o].populations) {
       flux.litter[o].dryMassKg += pop.viableMassKg;
       flux.litter[o].carbonKg += pop.viableMassKg * carbon;
-      removeNutrients(plant, pop.viableMassKg, deathConcentration, flux.litter[o]);
+      removeNutrients(plant, pop.viableMassKg, deathConcentration, flux.litter[o], soil);
       pop.viableMassKg = 0;
     }
   }
@@ -434,7 +659,6 @@ function advance(plant: Plant, env: PlantEnvironment, days: number): PlantFluxes
   refresh(plant);
   const totals = plant.ledger.totals;
   for (const key of ["grossDryMassKg", "co2TakenKgC", "co2ReleasedKgC", "o2ReleasedKg", "waterTakenKg", "waterTranspiredKg"] as const) totals[key] += flux[key];
-  for (const n of nutrients) totals.nutrientsTakenKg[n] += flux.nutrientsTakenKg[n];
   for (const o of organs) {
     totals.litter[o].dryMassKg += flux.litter[o].dryMassKg;
     totals.litter[o].carbonKg += flux.litter[o].carbonKg;

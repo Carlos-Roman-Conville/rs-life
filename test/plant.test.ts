@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { libraryTable } from "../src/library.ts";
 import type { LibraryRow } from "../src/library.ts";
-import { clonePlant, createPlant, plantLedgerError, plantOrganMasses, plantPhFactor, plantSalinityFactor,
+import { clonePlant, coarsen, createPlant, refine, vegetationStock, plantUptake, plantLedgerError, plantOrganMasses, plantPhFactor, plantSalinityFactor,
   plantTemperatureFactor, plantWaterFactor, stepPlant, PlantEnvironmentError, PlantFormError, PlantParameterError } from "../src/plant.ts";
 import type { Plant, PlantEnvironment, PlantInit } from "../src/plant.ts";
-import { organAggregate, splitRegions } from "../src/tissue.ts";
+import { mergeRegions, organAggregate, splitRegions } from "../src/tissue.ts";
+import { NutrientLedger, SoilCell } from "../src/soils.ts";
+import { createField, harvest } from "../src/ecology.ts";
+import { Trace } from "../src/trace.ts";
 
 // TEST-ONLY synthetic species AND missing-form fixtures. Numbers are test inputs, not science.
 // These in-memory records are never written to the library or used as production fallbacks.
@@ -42,6 +45,236 @@ function env(overrides: Partial<PlantEnvironment> = {}): PlantEnvironment {
     availableN: 1, availableP: 1, availableK: 1, soilPh: 7, salinity: 1, ...overrides };
 }
 const sample = (overrides: Record<string, string | number | null> = {}, initial: Partial<PlantInit> = {}): Plant => createPlant(species(overrides), init(initial));
+
+const named = (id = "a", overrides: Record<string, string | number | null> = {}, initial: Partial<PlantInit> = {}): Plant =>
+  sample(overrides, { id, region: "field", speciesId: "fixture", ...initial });
+const elements = [["n", "N"], ["p", "P"], ["k", "K"]] as const;
+const plantOrgans = ["leaf", "stem", "root", "rhizome"] as const;
+function extensive(p: Plant): number[] {
+  const { factors: _factors, ...totals } = p.ledger.totals;
+  const numbers = (value: unknown): number[] => typeof value === "number" ? [value] :
+    Object.values(value as Record<string, unknown>).flatMap(numbers);
+  return numbers({ masses: plantOrganMasses(p), reserve: p.developmental.reserveKg,
+    water: p.organism.waterKg, nutrients: p.organism.nutrientsKg, area: p.groundAreaM2,
+    initial: p.ledger.initial, totals });
+}
+function expectPoolsEqual(a: readonly Plant[], b: readonly Plant[]): void {
+  const sums = (plants: readonly Plant[]) => plants.map(extensive).reduce((sum, xs) => xs.map((x, i) => x + (sum[i] ?? 0)), []);
+  const left = sums(a), right = sums(b);
+  expect(left).toHaveLength(right.length);
+  left.forEach((value, i) => expect(Math.abs(value - right[i])).toBeLessThanOrEqual(1e-12));
+}
+
+describe("one biomass store (CG-21)", () => {
+  it("vegetationStock is a derived regional read of tissue and reserve", () => {
+    const a = named(), b = named("b"), elsewhere = named("elsewhere", {}, { region: "other" });
+    const records = [a, b, elsewhere], before = structuredClone(records);
+    const stock = vegetationStock(records, "field");
+    expect(stock).toEqual({ organsKg: { leaf: 0.2, stem: 0.4, root: 0.4, rhizome: 0.2 }, reserveKg: 0.02, totalKg: 1.22 });
+    expect(records).toEqual(before);
+    a.developmental.organs.leaf.populations[0].viableMassKg += 0.125;
+    expect(vegetationStock(records, "field").organsKg.leaf).toBe(0.325);
+    stock.organsKg.stem = 123;
+    expect(vegetationStock(records, "field").organsKg.stem).toBe(0.4);
+    expect(vegetationStock(records, "missing").totalKg).toBe(0);
+  });
+
+  it("coarsen and refine conserve every pool and mergeRegions tissue states to 1e-12", () => {
+    const a = named("a", { meristem_fraction: 0.02 }), b = named("b", { meristem_fraction: 0.02 }, { groundAreaM2: 2, ageDays: 30 });
+    stepPlant(a, env(), 5); stepPlant(b, env(), 11);
+    for (const o of plantOrgans) {
+      a.developmental.organs[o].populations.forEach(p => Object.assign(p, {
+        injury: 0.2, capacity: 0.8, repairCapacity: 0.01, matrixIntegrity: 0.6, fibroticFraction: 0.1, senescentFraction: 0.2,
+      }));
+      b.developmental.organs[o].populations.forEach(p => Object.assign(p, {
+        injury: 0.6, capacity: 0.5, repairCapacity: null, matrixIntegrity: 0.9, fibroticFraction: 0.3, senescentFraction: 0.7,
+      }));
+    }
+    const before = structuredClone([a, b]), trace = new Trace();
+    const coarse = coarsen([a, b], trace, 12);
+    expectPoolsEqual([a, b], [coarse]);
+    expect(coarse.developmental.ageDays).toBe((5 + 41 * 2) / 3);
+    for (const o of plantOrgans) coarse.developmental.organs[o].populations.forEach((pop, i) => {
+      expect(pop).toEqual(mergeRegions([a.developmental.organs[o].populations[i], b.developmental.organs[o].populations[i]]));
+    });
+    const parts = refine(coarse, { young: 0.1, middle: 0.2, old: 0.7 }, trace, 13);
+    expectPoolsEqual([coarse], parts);
+    for (const part of parts) {
+      expect(part.region).toBe("field");
+      expectClosed(part);
+      for (const o of plantOrgans) part.developmental.organs[o].populations.forEach((pop, i) => {
+        const { viableMassKg: _mass, ...state } = pop;
+        const { viableMassKg: _originalMass, ...original } = coarse.developmental.organs[o].populations[i];
+        expect(state).toEqual(original);
+      });
+    }
+    const roundTrip = coarsen(parts, trace, 14);
+    expectPoolsEqual([coarse], [roundTrip]);
+    expectClosed(roundTrip);
+    expect([a, b]).toEqual(before);
+    expect(trace.transfers).toEqual([]);
+    expect(trace.notes.map(n => n.text.split(":")[0])).toEqual(["plant.coarsen", "plant.refine", "plant.coarsen"]);
+    expect(roundTrip.ledger.notes.length).toBeGreaterThan(0);
+    parts[0].developmental.organs.leaf.populations[0].injury = 99;
+    expect(parts[1].developmental.organs.leaf.populations[0].injury).not.toBe(99);
+  });
+
+  it("retains empty tissue definitions and anatomical regions", () => {
+    const p = named("empty", {}, { massesKg: { leaf: 0.1, stem: 0.2, root: 0.2, rhizome: 0 } });
+    p.developmental.organs.leaf.populations = splitRegions(p.developmental.organs.leaf.populations[0], { inner: 0.2, outer: 0.8 });
+    p.developmental.organs.rhizome.populations[0].injury = 0.4;
+    const result = coarsen(refine(p, { a: 0.4, b: 0.6 }));
+    expectPoolsEqual([p], [result]);
+    expect(result.developmental.organs.leaf.populations.map(p => p.region)).toEqual(["inner", "outer"]);
+    expect(result.developmental.organs.rhizome.populations[0].injury).toBe(0.4);
+  });
+
+  it("rejects incompatible records and invalid shares without changing inputs", () => {
+    const a = named(), before = structuredClone(a);
+    expect(() => coarsen([])).toThrow();
+    expect(() => coarsen([a, a])).toThrow("duplicate");
+    expect(() => coarsen([a, sample()])).toThrow("identity");
+    for (const patch of [{ region: "elsewhere" }, { speciesId: "different" }, { cultivar: "different" }])
+      expect(() => coarsen([a, named("b", {}, patch)])).toThrow("incompatible");
+    expect(() => coarsen([a, named("b", { q10: 3 })])).toThrow("incompatible");
+    const invalidShares: Record<string, number>[] = [{}, { a: 0.2 }, { a: -0.1, b: 1.1 }, { a: NaN }, { a: 0, b: 1 }, { a: 1, b: 1e-13 }];
+    for (const shares of invalidShares)
+      expect(() => refine(a, shares)).toThrow("shares");
+    expect(a).toEqual(before);
+  });
+
+  it("measures coarse versus refined 365-day stepping without an invented error band", () => {
+    const coarse = named(), parts = refine(coarse, { a: 0.25, b: 0.75 });
+    const daily = refine(coarse, { a: 0.25, b: 0.75 });
+    const forcing = (p: Plant) => env({ availableN: p.groundAreaM2, availableP: p.groundAreaM2, availableK: p.groundAreaM2,
+      soilWater: { availableKg: 10 * p.groundAreaM2, totalAvailableKg: 10 * p.groundAreaM2 } });
+    stepPlant(coarse, forcing(coarse), 365);
+    for (const p of parts) stepPlant(p, forcing(p), 365);
+    for (let day = 0; day < 365; day++) for (const p of daily) stepPlant(p, forcing(p), 1);
+    const heterogeneous = [named("sparse", {}, { groundAreaM2: 3 }), named("dense", {}, { groundAreaM2: 0.5, tissueFractions: { n: 0.5, p: 1, k: 1 } })];
+    const merged = coarsen(heterogeneous);
+    stepPlant(merged, forcing(merged), 365);
+    for (const p of heterogeneous) stepPlant(p, forcing(p), 365);
+    const mass = (ps: Plant[]) => vegetationStock(ps, "field").totalKg;
+    const measured = { sameIntervalKg: mass([coarse]) - mass(parts),
+      annualMinusDailyKg: mass([coarse]) - mass(daily), heterogeneousKg: mass([merged]) - mass(heterogeneous) };
+    for (const difference of Object.values(measured)) expect(Number.isFinite(difference)).toBe(true);
+    for (const p of [coarse, ...parts, ...daily, merged, ...heterogeneous]) expectClosed(p);
+    console.log("(3015) coarse-minus-refined dry mass", JSON.stringify(measured));
+  });
+});
+
+describe("uptake is one transfer (CG-3)", () => {
+  it("credits tissue in the soil transaction once per element and rolls back a late refusal", () => {
+    const plant = named(), cell = new SoilCell("a", 1, { N: 1, P: 0.1, K: 0.5 });
+    const ledger = new NutrientLedger(), trace = new Trace();
+    const before = structuredClone(plant), soilBefore = cell.pool;
+    const flux = { nutrientsTakenKg: { n: 0.01, p: 0.001, k: 0.005 } };
+    plantUptake(cell, plant, flux, ledger, trace, 42);
+    for (const [n, el] of elements) {
+      expect(Math.abs((soilBefore[el] - cell.pool[el]) - (plant.organism.nutrientsKg[n] - before.organism.nutrientsKg[n]))).toBeLessThanOrEqual(1e-12);
+      expect(ledger.balance(`plant:${plant.id}`, el)).toBe(0);
+      expect(trace.transfers.filter(x => x.quantity === `nutrient:${el}`)).toEqual([
+        { t: 42, process: "plant.uptake", quantity: `nutrient:${el}`, from: "soil:a", to: "plant:a", amount: flux.nutrientsTakenKg[n] },
+      ]);
+    }
+    expect(ledger.journal.entries()).toHaveLength(3);
+    expect(ledger.journal.entries().every(entry => entry.t === 42000)).toBe(true);
+    expectClosed(plant);
+    for (const bad of [0.2, -1, NaN, Infinity]) {
+      const saved = structuredClone(plant), soilSaved = cell.pool, journal = ledger.journal.entries();
+      expect(() => plantUptake(cell, plant, { nutrientsTakenKg: { n: 0.01, p: bad, k: 0 } }, ledger, trace, 43)).toThrow();
+      expect(plant).toEqual(saved); expect(cell.pool).toEqual(soilSaved);
+      expect(ledger.journal.entries()).toEqual(journal); expect(trace.transfers).toHaveLength(3);
+    }
+    plantUptake(cell, plant, { nutrientsTakenKg: { n: 0, p: 0, k: 0 } }, ledger, trace, 44);
+    expect(trace.transfers).toHaveLength(3);
+    expect(trace.failed()).toEqual([]);
+  });
+
+  it("caps demand by the current cell and host allowance, with no negative soil or duplicate credits", () => {
+    const cell = new SoilCell("a", 100, { N: 0.00001, P: 0.00001, K: 0.00001 });
+    const plant = named(), ledger = new NutrientLedger();
+    const flux = stepPlant(plant, env({ availableP: 0.000001 }), 1, { cell, ledger, t: 0 });
+    expect(flux.nutrientsTakenKg).toEqual({ n: 0.00001, p: 0.000001, k: 0.00001 });
+    expect(cell.pool.N).toBe(0); expect(cell.pool.K).toBe(0);
+    const second = stepPlant(named("b"), env(), 1, { cell, ledger, t: 1 });
+    expect(second.nutrientsTakenKg.n).toBe(0); expect(second.nutrientsTakenKg.k).toBe(0);
+    expect(Object.values(cell.pool).every(q => q >= 0)).toBe(true);
+    expectClosed(plant);
+    const duplicate = new NutrientLedger({ "plant:a": { N: 1, P: 0, K: 0 } });
+    expect(() => plantUptake(cell, plant, { nutrientsTakenKg: { n: 0, p: 0, k: 0 } }, duplicate)).toThrow("duplicate plant stock");
+  });
+
+  it("returns turnover and terminal death only to detritus, leaving soil untouched", () => {
+    const plant = named("dying", { maintenance_resp_25c: 0.1 }), cell = new SoilCell("a", 1, { N: 1, P: 1, K: 1 });
+    const ledger = new NutrientLedger(), trace = new Trace(), initial = { ...plant.organism.nutrientsKg };
+    for (let day = 0; day < 365 && plant.organism.alive; day++)
+      stepPlant(plant, env({ par: 0 }), 1, { cell, ledger, trace, t: day * 86400 });
+    expect(plant.organism.alive).toBe(false);
+    expect(cell.pool).toEqual({ N: 1, P: 1, K: 1 });
+    for (const [n, el] of elements) {
+      expect(Math.abs(ledger.balance("detritus", el) - initial[n])).toBeLessThanOrEqual(1e-12);
+      expect(plant.organism.nutrientsKg[n]).toBeLessThanOrEqual(1e-12);
+    }
+    expect(trace.transfers.length).toBeGreaterThan(0);
+    expect(trace.transfers.every(x => x.from === "plant:dying" && x.to === "detritus")).toBe(true);
+    expectClosed(plant);
+  });
+
+  it("rolls back the whole growth step when a detritus account refuses a late element", () => {
+    class RefusingLedger extends NutrientLedger {
+      override apply(account: string, quantity: string, delta: number): void {
+        if (account === "detritus" && quantity === "nutrient:K") throw new Error("fixture refusal");
+        super.apply(account, quantity, delta);
+      }
+    }
+    const plant = named(), before = structuredClone(plant), cell = new SoilCell("a", 1, { N: 1, P: 1, K: 1 });
+    const ledger = new RefusingLedger(), trace = new Trace();
+    expect(() => stepPlant(plant, env(), 1, { cell, ledger, trace, t: 0 })).toThrow("fixture refusal");
+    expect(plant).toEqual(before); expect(cell.pool).toEqual({ N: 1, P: 1, K: 1 });
+    expect(ledger.total("N")).toBe(0); expect(ledger.total("P")).toBe(0);
+    expect(ledger.journal.entries()).toEqual([]); expect(trace.transfers).toEqual([]); expect(trace.checks).toEqual([]);
+  });
+
+  it("closes pools + accounts + tissue for each element over 365 days and harvest with uptakeByPlant", () => {
+    const plant = named(), cell = new SoilCell("a", 1, { N: 1, P: 0.1, K: 0.5 });
+    const ledger = new NutrientLedger(), trace = new Trace(), field = createField("a", 0.9, cell, ledger);
+    const soilBefore = cell.pool;
+    const initial = elements.map(([n, el]) => cell.pool[el] + ledger.total(el) + plant.organism.nutrientsKg[n]);
+    let maxResidual = 0;
+    for (let day = 0; day < 365; day++) {
+      const tissueBefore = { ...plant.organism.nutrientsKg }, soilBeforeStep = cell.pool, mark = trace.transfers.length;
+      const flux = stepPlant(plant, env({ par: 14 + 8 * Math.sin(day / 17), airTemperatureC: 20 + 12 * Math.sin(day / 30) }),
+        1, { cell, ledger, trace, t: day * 86400 });
+      for (const [index, [n, el]] of elements.entries()) {
+        const uptake = trace.transfers.slice(mark).filter(x => x.process === "plant.uptake" && x.quantity === `nutrient:${el}`);
+        expect(uptake).toHaveLength(flux.nutrientsTakenKg[n] > 0 ? 1 : 0);
+        const litter = plantOrgans.reduce((sum, o) => sum + flux.litter[o].nutrientsKg[n], 0);
+        const debit = soilBeforeStep[el] - cell.pool[el];
+        expect(Math.abs(debit - flux.nutrientsTakenKg[n])).toBeLessThanOrEqual(1e-12);
+        expect(Math.abs(debit - (plant.organism.nutrientsKg[n] - tissueBefore[n] + litter))).toBeLessThanOrEqual(1e-12);
+        expect(cell.pool[el]).toBeGreaterThanOrEqual(0);
+        const residual = Math.abs(cell.pool[el] + ledger.total(el) + plant.organism.nutrientsKg[n] - initial[index]);
+        expect(residual).toBeLessThanOrEqual(1e-12); maxResidual = Math.max(maxResidual, residual);
+        expect(Math.abs(plantLedgerError(plant)[n])).toBeLessThanOrEqual(1e-12);
+      }
+      expect(flux.waterTakenKg).toBe(flux.waterTranspiredKg);
+    }
+    const beforeHarvest = cell.pool, journalLength = ledger.journal.entries().length;
+    const crop = harvest(field, "maize", 0.001, 1, 1, trace, 365, { uptakeByPlant: true });
+    expect(crop.yield).toBeGreaterThan(0);
+    expect(crop.transferred).toEqual({ N: 0, P: 0, K: 0 });
+    expect(cell.pool).toEqual(beforeHarvest);
+    expect(ledger.journal.entries()).toHaveLength(journalLength);
+    for (const [n, el] of elements)
+      expect(Math.abs(soilBefore[el] - cell.pool[el] - plant.ledger.totals.nutrientsTakenKg[n])).toBeLessThanOrEqual(1e-12);
+    expect(ledger.balance("detritus", "N")).toBeGreaterThan(0);
+    expect(trace.transfers.every(x => x.process !== "plant.litter" || x.to === "detritus")).toBe(true);
+    expect(trace.failed()).toEqual([]);
+    console.log("(3015) maximum 365-day element closure residual kg", maxResidual);
+  });
+});
 
 function expectClosed(plant: Plant): void {
   const residual = plantLedgerError(plant), initial = plant.ledger.initial, totals = plant.ledger.totals;
