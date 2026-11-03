@@ -11,6 +11,7 @@ export * from "./elements.js";
 export * from "./library.js";
 export * from "./physiology.js";
 export * from "./nutrition.js";
+export { energyRequirement, householdRequirement } from "./subsistence.js";
 export * from "./atmosphere.js";
 export * from "./respiration.js";
 export * from "./environment.js";

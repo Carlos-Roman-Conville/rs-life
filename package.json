@@ -1,6 +1,6 @@
 {
   "name": "@rex/realism",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The realism engine: registry, connection graph, conservation and process engine, scheduler, trace. Shared by the games; the pirate game is its first configuration.",
   "private": true,
   "type": "module",
