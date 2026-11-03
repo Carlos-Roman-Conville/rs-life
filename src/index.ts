@@ -27,3 +27,5 @@ export * from "./soils.ts";
 export * from "./population.ts";
 export * from "./labour-intentions.ts";
 export * from "./lab/still.ts";
+export * from "./plant.ts";
+export * from "./tissue.ts";
