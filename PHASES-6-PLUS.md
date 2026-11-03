@@ -65,8 +65,8 @@ drag). Articulated bodies (joints, locomotion, balance) come after the rigid fou
 organs and `species`; `muscular.json` `limb_strength` and `groups`; `physiology.json` `met`.
 **Missing.** Everything mechanical: `src/mechanics.ts`, segment masses and inertia from an opened anthropometric
 table (de Leva 1996 or Winter 2009; null where not opened), momentum and energy conservation checks, contact.
-**Acceptance.** `examples/standing.ts`: a human stands one simulated minute on level ground, net force at the feet
-zero within the solver's tolerance, momentum and energy ledgers closing; a dropped 1 kg mass from 2 m hits the
+**Acceptance.** `examples/standing.ts`: a human stands one simulated minute on level ground, the net external force on the body is zero within the solver's tolerance, and the vertical ground reaction at
+the feet equals body weight, m·g, within the same tolerance, momentum and energy ledgers closing; a dropped 1 kg mass from 2 m hits the
 ground with the cited velocity and its impulse appears in the ledger; the horse stands by configuration.
 `grep` finds no `strength` scalar in `src/`.
 
@@ -117,8 +117,9 @@ contacts with the energies v = omega x r predicts; a punch at different angles g
 angle predict; a moving defender produces a graze, not a full hit, for the same swing; wound depth is reported as a
 range with its uncertainty, since tissue models need empirical calibration.
 **Validation (PLATFORM.md 11a).** Impact force and impulse against measured strike data (punch force by instrumented
-targets, cutting tests on tissue simulants), penetration against ballistic gelatin and tissue studies; each a cited
-range, never a fitted constant. Integration: contact with mechanics (the swing), materials (the blade and the armour),
+targets, cutting tests on tissue simulants), penetration against ballistic gelatin and tissue studies; each compared
+with a cited measured range. A parameter may be calibrated against an independent dataset declared as the calibration
+set and is then validated on a different dataset; no parameter is tuned toward a wanted outcome, and no fit is validated on the data that produced it (PLAN-SPEC §2 row 7). Integration: contact with mechanics (the swing), materials (the blade and the armour),
 anatomy and medicine (the wound), circulation (the bleeding).
 
 ## Phase 7: fluid dynamics (needs 6)
