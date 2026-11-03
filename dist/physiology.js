@@ -1,0 +1,484 @@
+import { addHeat } from "./world.js";
+import { C_TO_K, KCAL_J, M, P_SEA_LEVEL, heatFlow, molesInVolume, waterVapourPressure } from "./physics.js";
+import { libraryMeta, libraryRow, libraryTable } from "./library.js";
+import { accumulateExposure } from "./respiration.js";
+import { trackCrisis } from "./crisis.js";
+import { bodyMassDelta, glycogenBoundWaterKg, GLYCOGEN_BOUND_WATER } from "./nutrition.js";
+/** Energy per litre of oxygen consumed (STPD), J/L: 20.1 kJ/L (PHY-MET, PHY-FAO). */
+export const O2_ENERGY_J_PER_L = 20100;
+/** Metabolic heat of a body, W: MET x 3.5 mL O2/kg/min x 20.1 kJ/L (PHY-MET, PHY-FAO). */
+export function metabolicHeat(met, massKg) {
+    const litresO2PerMin = met * 3.5 * massKg / 1000;
+    return litresO2PerMin * O2_ENERGY_J_PER_L / 60;
+}
+/** Latent heat of sweat evaporation, J/kg (about 2.43 MJ/kg at skin temperature). ENG-LAT. */
+export const SWEAT_LATENT = 2.43e6;
+/**
+ * A body in the room. The process is `physiologyProcess` (physiology.ts): metabolic heat by MET, the air exchange, sweat
+ * and its evaporative cooling, the water deficit, CO2 and CO exposure, and the library's heat, sleep and hydration states.
+ */
+export function bodyProcess(body, room, met) {
+    return physiologyProcess(body, room, { met });
+}
+/** The outputs record of a body, created on first use. It lives at `props.outputs` (props is typed numbers only). */
+export function bodyOutputs(body) {
+    const p = body.props;
+    return (p.outputs ??= {});
+}
+/**
+ * Heat exchange of the skin and the breath, ISO 7730:2005 section 4 (Fanger 1970, the PMV heat balance), per m2
+ * of skin with M - W in W/m2 and the vapour pressure pa in Pa: skin temperature in comfort 35.7 - 0.028 (M - W); skin
+ * diffusion 3.05e-3 (5733 - 6.99 (M - W) - pa); respiratory latent 1.7e-5 M (5867 - pa) and dry 0.0014 M (34 - ta);
+ * radiation 3.96e-8 fcl (Tcl^4 - Tr^4) with fcl 1 (no clothing) and the mean radiant temperature taken as the air's;
+ * convection hc = max(2.38 |tcl - ta|^0.25, 12.1 sqrt(v)). The Lewis relation, 16.5 K/kPa, is ASHRAE Handbook Fundamentals
+ * ch. 9 (Thermal Comfort). Body surface area is DuBois and DuBois 1916 (Arch Intern Med 17:863), 0.007184 W^0.425 H^0.725
+ * (W kg, H cm). None is a library row yet and none was re-opened in session 2540 (web access denied): FLAGS.md, physiology.
+ */
+const PMV = { skinC: 35.7, skinPerW: 0.028, diff: 3.05e-3, diffPa: 5733, diffPerW: 6.99, resLatent: 1.7e-5, resPa: 5867,
+    resDry: 0.0014, resC: 34, rad: 3.96e-8, hcFree: 2.38, hcForced: 12.1, lewisKPerKPa: 16.5 };
+const DUBOIS = { k: 0.007184, mass: 0.425, height: 0.725 };
+/**
+ * Urine, Guyton and Hall, Textbook of Medical Physiology, ch. 29 (the library's ANA-ORG reference): a 70 kg adult excretes about 600 mOsm of
+ * solute a day; the kidney concentrates urine to at most 1,200 mOsm/L (the obligatory volume, 600/1200 = 0.5 L/day) and
+ * dilutes it to as little as 50 mOsm/L (600/50 = 12 L/day at most). Urine is taken as 1 kg/L.
+ */
+const URINE = { soluteMosmDay: 600, maxMosmL: 1200, minMosmL: 50 };
+/** Body surface area, m2: the host's `area_m2`, else DuBois from height and mass; null when neither is known. */
+export function bodyArea(body) {
+    if (body.props.area_m2 !== undefined)
+        return body.props.area_m2;
+    const h = body.props.height_cm;
+    return h === undefined ? null : DUBOIS.k * Math.pow(body.mass, DUBOIS.mass) * Math.pow(h, DUBOIS.height);
+}
+/** Dry (convective plus radiant) heat flow from skin at `skinC` to air at `airC`, W: the host's `h` if it gives one, else ISO 7730. */
+function dryHeatW(body, area, skinC, airC, windMS) {
+    if (body.props.h !== undefined)
+        return heatFlow(body.props.h, area, skinC - airC);
+    const k = (c) => c + C_TO_K;
+    return area * (PMV.rad * (k(skinC) ** 4 - k(airC) ** 4) + convectionH(skinC, airC, windMS) * (skinC - airC));
+}
+function convectionH(skinC, airC, windMS) {
+    return Math.max(PMV.hcFree * Math.abs(skinC - airC) ** 0.25, PMV.hcForced * Math.sqrt(windMS));
+}
+/** "0 to 4", "over 40", ">= 40.0", "< 32.0" as the half-open interval [lo, hi). */
+function parseBand(label) {
+    let m = /^(?:>=|over)\s*(-?[\d.]+)$/.exec(label);
+    if (m)
+        return { lo: Number(m[1]), hi: Infinity };
+    m = /^(?:<|under)\s*(-?[\d.]+)$/.exec(label);
+    if (m)
+        return { lo: -Infinity, hi: Number(m[1]) };
+    m = /^(-?[\d.]+) to (-?[\d.]+)$/.exec(label);
+    if (m)
+        return { lo: Number(m[1]), hi: Number(m[2]) };
+    throw new Error(`physiology: cannot read the band "${label}"`);
+}
+function bandsOf(table, column) {
+    return libraryTable("physiology", table).map(row => ({ ...parseBand(String(row[column])), row }));
+}
+function bandAt(bands, v) {
+    return bands.find(b => v >= b.lo && v < b.hi) ?? (v < bands[0].lo ? bands[0] : bands[bands.length - 1]);
+}
+let tables = null;
+function num(text, re, what, group = 1) {
+    const m = re.exec(text);
+    if (!m)
+        throw new Error(`physiology: the library text for ${what} no longer reads ${re}`);
+    return Number(m[group]);
+}
+function lib() {
+    if (tables)
+        return tables;
+    const met = new Map(libraryTable("physiology", "met").map(r => [String(r.id), Number(r.MET)]));
+    const recovery = new Map(libraryTable("physiology", "recovery").map(r => [String(r.id), String(r["Overnight rule"])]));
+    const rec = (id) => recovery.get(`physiology.recovery.${id}`) ?? "";
+    const sleepRule = rec("sleep-debt"), fatigueRule = rec("whole-body-fatigue-the-days-met-hours");
+    const heat = libraryTable("physiology", "acclimatisation").find(r => r.id === "physiology.acclimatisation.heat-acclimatisation");
+    const pals = libraryTable("physiology", "pal").map(r => Number(r.PAL));
+    const hours = (s) => { const [h, m] = s.split(":").map(Number); return h + m / 60; };
+    const circadian = libraryTable("physiology", "circadian").map(row => {
+        const m = /^(\d\d:\d\d) to (\d\d:\d\d)$/.exec(String(row["Ship's time"]));
+        if (!m)
+            throw new Error(`physiology: cannot read the time band "${String(row["Ship's time"])}"`);
+        return { lo: hours(m[1]), hi: hours(m[2]), row };
+    });
+    const wbgt = libraryTable("physiology", "wbgt_limits").map((row) => {
+        const label = String(row["Work class (MET)"]);
+        let lo = -Infinity, hi = Infinity, loIncl = false, hiIncl = false;
+        let m = /\(under ([\d.]+)\)/.exec(label);
+        if (m)
+            hi = Number(m[1]);
+        else if ((m = /\(over ([\d.]+)\)/.exec(label)))
+            lo = Number(m[1]);
+        else if ((m = /\(([\d.]+) to ([\d.]+)\)/.exec(label))) {
+            lo = Number(m[1]);
+            hi = Number(m[2]);
+            loIncl = hiIncl = true;
+        }
+        else
+            throw new Error(`physiology: cannot read the work class "${label}"`);
+        return { lo, loIncl, hi, hiIncl, ceilingC: Number(row["WBGT ceiling, acclimatised (C)"]), unacclimatisedC: Number(row["Unacclimatised (C)"]),
+            driftCPerHPerC: Number(row["Model: core drift above ceiling (C per hour per C over)"]), row };
+    });
+    tables = {
+        met,
+        sleepDebt: bandsOf("sleep_debt", "Cumulative debt (hours below 8 h)"),
+        circadian, core: bandsOf("core_temp", "Core (C)"), hydration: bandsOf("hydration", "Deficit (% body mass)"), wbgt,
+        palMin: Math.min(...pals), palMax: Math.max(...pals),
+        needH: num(sleepRule, /debt \+= max\(0, ([\d.]+) - hours slept\)/, "the sleep need"),
+        splitQuality: num(sleepRule, /counts ([\d.]+) of its hours/, "the split-sleep quality"),
+        fatigueResetH: num(fatigueRule, /after ([\d.]+)\+ hours/, "the fatigue reset"),
+        restCoreC: num(rec("core-temperature"), /returns to ([\d.]+) if sheltered/, "the resting core"),
+        heatGainDays: num(String(heat["Time to gain"]), /([\d.]+) to ([\d.]+) days/, "the heat gain clock", 2),
+        heatLossDays: num(String(heat["Time to lose"]), /about ([\d.]+) days/, "the heat loss clock"),
+        // the hydration table's source (PHY-HYD): "sweat rates 0.5 to over 2.5 L/h in heat"; the core_temp row's "sweat rate at max"
+        sweatMaxLph: num(libraryMeta("physiology", "hydration").source, /sweat rates [\d.]+ to over ([\d.]+) L\/h/, "the maximum sweat rate"),
+        rq: num(String(libraryRow("gasdynamics", "box_model", "gasdynamics.box_model.oxygen-and-carbon-dioxide-move-together").Formula), /produced \/ ([\d.]+)/, "the respiratory quotient"),
+    };
+    return tables;
+}
+/** MET of a physiology row (full id or slug), a muscular.activations row id, or a number as given. */
+export function metOf(activity) {
+    if (typeof activity === "number")
+        return activity;
+    if (activity.startsWith("muscular.activations."))
+        return Number(libraryRow("muscular", "activations", activity)["Intensity (MET)"]);
+    const t = lib().met, v = t.get(activity) ?? t.get(`physiology.met.${activity}`);
+    if (v === undefined)
+        throw new Error(`physiology: no MET row ${activity}`);
+    return v;
+}
+/** The work class (light, moderate, heavy) of a MET: its WBGT ceilings and core drift rate. */
+export function wbgtClass(met) {
+    const c = lib().wbgt.find(x => (met > x.lo || (x.loIncl && met === x.lo)) && (met < x.hi || (x.hiIncl && met === x.hi)));
+    if (!c)
+        throw new Error(`physiology: no work class for MET ${met}`);
+    return c;
+}
+/** The WBGT ceiling for continuous work at this MET, between the unacclimatised (0) and acclimatised (1) columns. */
+export function wbgtCeiling(met, acclimatisation) {
+    const c = wbgtClass(met);
+    return c.unacclimatisedC + acclimatisation * (c.ceilingC - c.unacclimatisedC);
+}
+/** Sleep debt (hours below need) to the table row and its alertness multiplier. */
+export function sleepDebtRow(debtH) { const b = bandAt(lib().sleepDebt, debtH); return { row: b.row, multiplier: Number(b.row["Alertness multiplier"]) }; }
+/** Clock hour (0 to 24) to the circadian row and factor; a band such as 22:00 to 02:00 wraps midnight. */
+export function circadianRow(hour) {
+    const h = ((hour % 24) + 24) % 24;
+    const b = lib().circadian.find(x => (x.lo <= x.hi ? h >= x.lo && h < x.hi : h >= x.lo || h < x.hi));
+    if (!b)
+        throw new Error(`physiology: no circadian band for ${h} h`);
+    return { row: b.row, factor: Number(b.row.Factor) };
+}
+/** Core temperature to its state row; `workCapacity` is the row's "work capacity xN" (1 for normal, null where the text gives none). */
+export function coreRow(coreC) {
+    const row = bandAt(lib().core, coreC).row, effect = String(row["What the sim does"]);
+    const m = /work capacity x([\d.]+)/.exec(effect);
+    return { row, state: String(row.State), effect, workCapacity: m ? Number(m[1]) : effect === "none" ? 1 : null, sweatAtMax: effect.includes("sweat rate at max") };
+}
+/** The hydration rows whose effect says work stops ("incapacitated") or death: where a water deficit opens a crisis. */
+const HYDRATION_STOPS = /incapacitated|death/;
+export const hydrationCrisisRows = () => lib().hydration.filter(b => HYDRATION_STOPS.test(String(b.row["Effect in the model"])));
+/** Water deficit (% of body mass) to its row; `endurance` is the Endurance factor (the in-heat one when hot), null where the text gives none;
+ * `workCapacity` is 1 where the row says none, 0 where it says work stops or death, null where it gives no work figure. */
+export function hydrationRow(deficitPct, hot) {
+    const row = bandAt(lib().hydration, deficitPct).row, effect = String(row["Effect in the model"]);
+    const m = /Endurance(?: pool)? x([\d.]+)(?: \(x([\d.]+) in heat\))?/.exec(effect);
+    const endurance = m ? Number(hot && m[2] ? m[2] : m[1]) : effect === "none" ? 1 : null;
+    return { row, effect, endurance, workCapacity: effect === "none" ? 1 : HYDRATION_STOPS.test(effect) ? 0 : null };
+}
+/**
+ * The overnight tick for sleep and fatigue (recovery table): debt += max(0, need - slept) - max(0, slept - need), floored at 0;
+ * fatigue resets after the table's hours, else carries (need - slept)/need of itself. `slept` is already quality-weighted.
+ */
+export function overnight(debtH, fatigueMetH, sleptH) {
+    const { needH, fatigueResetH } = lib();
+    return {
+        debtH: Math.max(0, debtH + Math.max(0, needH - sleptH) - Math.max(0, sleptH - needH)),
+        fatigueMetH: sleptH >= fatigueResetH ? 0 : fatigueMetH * (needH - sleptH) / needH,
+    };
+}
+/** The recovery table's weight of a split (watch) night's hours. */
+export function splitSleepQuality() { return lib().splitQuality; }
+/** The PAL bands' lowest and highest value (FAO 2004 as the library has them). */
+export function palRange() { return { min: lib().palMin, max: lib().palMax }; }
+export function restingMetabolicRate(body, rmrFormula, rmrOverride) {
+    if (rmrOverride !== undefined) {
+        if (rmrOverride.label !== "estimate" && rmrOverride.label !== "fiction")
+            throw new Error("physiology: rmr_override_label must be estimate or fiction");
+        return rmrOverride.kcalDay;
+    }
+    const formula = rmrFormula ?? String(libraryRow("anatomy", "species", "anatomy.species.rmr-formula")["Human default"]);
+    if (formula === "Mifflin-St Jeor (PHYSIOLOGY)") {
+        const { height_cm: h, age_y: a, male } = body.props;
+        if (h === undefined || a === undefined || male === undefined)
+            return null;
+        return 10 * body.mass + 6.25 * h - 5 * a + (male === 1 ? 5 : -161);
+    }
+    const power = /^(?:Kleiber's law )?(\d+(?:\.\d+)?) x kg\^(\d+(?:\.\d+)?)$/.exec(formula);
+    if (power)
+        return Number(power[1]) * Math.pow(body.mass, Number(power[2]));
+    throw new Error(`physiology: unsupported RMR formula "${formula}"`);
+}
+/** Metabolic power owned by physiology; an explicit resting rate carries species/host selection. */
+export function metabolicRateW(met, body, rmr = restingMetabolicRate(body)) {
+    const scale = rmr === null ? 1 : rmr * KCAL_J / 86400 / metabolicHeat(1, body.mass);
+    return metabolicHeat(met, body.mass) * scale;
+}
+/** Oxygen demand in L/min for metabolic power in W (J/s). */
+export function oxygenLitresPerMin(metabolicW) {
+    return metabolicW * 60 / O2_ENERGY_J_PER_L;
+}
+/** Establish the reference once, before even a pre-step meal. Initial water is already part of body mass. */
+function initialiseBodyWater(w, b) {
+    if (b.props.water_start_kg !== undefined)
+        return;
+    const priorDeficitKg = b.props.waterDeficitKg;
+    if (!b.contents.some(x => x.substance === "water") || priorDeficitKg !== undefined) {
+        const id = `physiology.body_water.total-body-water-fraction-${b.props.male === 0 ? "women" : "men"}`;
+        const fraction = libraryRow("physiology", "body_water", id).Value;
+        if (typeof fraction !== "number" || !Number.isFinite(fraction) || fraction <= 0 || fraction > 1)
+            throw new Error(`physiology: missing valid numeric row ${id}`);
+        const referenceKg = fraction * b.mass;
+        // A host's prior deficit describes the starting state, not a new mass loss.
+        const kg = referenceKg - (priorDeficitKg ?? 0) - glycogenBoundWaterKg(b);
+        if (!Number.isFinite(kg) || kg < 0)
+            throw new Error("physiology: invalid initial body water after deficit and glycogen binding");
+        const deltaKg = kg - w.registry.contentMass(b, "water");
+        w.registry.addContent(b, "water", "liquid", deltaKg);
+        w.trace.record({ t: w.t, process: "realism.physiology.water_balance", quantity: "mass:water",
+            from: deltaKg >= 0 ? "initial-body-water" : b.id, to: deltaKg >= 0 ? b.id : "initial-body-water",
+            amount: Math.abs(deltaKg), note: "initial water already included in body mass" });
+        b.props.water_start_kg = referenceKg;
+    }
+    else
+        b.props.water_start_kg = totalBodyWaterKg(w, b);
+    b.props.water_start_mass_kg = b.mass;
+}
+/** Total body water includes the free content and the water held by glycogen. */
+export function totalBodyWaterKg(w, b) {
+    return w.registry.contentMass(b, "water") + glycogenBoundWaterKg(b);
+}
+/** Derived views only: the fixed reference mass keeps deficit in % of starting body mass. */
+function deriveBodyWater(w, b) {
+    b.props.waterDeficitKg = b.props.water_start_kg - totalBodyWaterKg(w, b);
+    b.props.waterDeficitPct = b.props.waterDeficitKg / b.props.water_start_mass_kg * 100;
+    bodyOutputs(b).water_deficit_pct = b.props.waterDeficitPct;
+}
+/** Physiology owns registry water; every actual transfer also changes body mass immediately.
+ * `other` names an external source/sink; default is the caller's process.
+ */
+export function addBodyWater(w, body, kg, process, note, other = process) {
+    const b = w.registry.component(body);
+    if (b.kind !== "body" || !Number.isFinite(kg) || !Number.isFinite(b.mass) || b.mass <= 0 || b.mass + kg < 0)
+        throw new Error("physiology: invalid body water delta");
+    initialiseBodyWater(w, b);
+    if (w.registry.contentMass(b, "water", "liquid") + kg < -1e-12)
+        throw new Error("physiology: body water overdraw");
+    w.registry.addContent(b, "water", "liquid", kg);
+    bodyMassDelta(w, body, kg, process, note);
+    w.trace.record({ t: w.t, process, quantity: "mass:water", from: kg >= 0 ? other : body, to: kg >= 0 ? body : other, amount: Math.abs(kg), note });
+    deriveBodyWater(w, b);
+}
+/** Move water internally as glycogen changes, without a body-mass transfer. */
+export function setBodyGlycogen(w, body, glycogenG) {
+    const b = w.registry.component(body);
+    if (b.kind !== "body" || !Number.isFinite(glycogenG) || glycogenG < 0)
+        throw new Error("physiology: invalid glycogen reserve");
+    initialiseBodyWater(w, b);
+    const boundDelta = glycogenG / 1000 * (GLYCOGEN_BOUND_WATER ?? 0) - glycogenBoundWaterKg(b);
+    if (w.registry.contentMass(b, "water", "liquid") - boundDelta < -1e-12)
+        throw new Error("physiology: body water overdraw");
+    w.registry.addContent(b, "water", "liquid", -boundDelta);
+    b.props.glycogen_g = glycogenG;
+    if (boundDelta !== 0)
+        w.trace.record({ t: w.t, process: "nutrition", quantity: "mass:water",
+            from: boundDelta > 0 ? body : `${body}:glycogen-bound`, to: boundDelta > 0 ? `${body}:glycogen-bound` : body,
+            amount: Math.abs(boundDelta), note: "glycogen-bound water" });
+    deriveBodyWater(w, b);
+}
+/** Eat or drink in kind: water enters the single content ledger, energy enters its intake counter. */
+export function ingest(w, body, food, process = "ingest") {
+    const b = w.registry.component(body);
+    if (food.kcal) {
+        b.props.intake_kcal = (b.props.intake_kcal ?? 0) + food.kcal;
+        w.trace.record({ t: w.t, process, quantity: "energy:chemical", from: "food", to: body, amount: food.kcal * KCAL_J });
+    }
+    if (food.waterKg) {
+        addBodyWater(w, body, food.waterKg, process, "intake", "intake");
+    }
+}
+/** Close the day: sleep and fatigue by the overnight table, the core back to rest if sheltered, acclimatisation, the day's PAL. */
+function closeDay(b, rmr) {
+    const p = b.props, t = lib();
+    const n = overnight(p.sleep_debt ?? 0, p.fatigue_met_hours ?? 0, p.slept_effective_h ?? 0);
+    p.sleep_debt = n.debtH;
+    p.fatigue_met_hours = n.fatigueMetH;
+    p.slept_effective_h = 0;
+    if ((p.sheltered ?? 1) === 1)
+        p.core_c = t.restCoreC;
+    const gain = p.heat_day === 1;
+    p.acclimatisation = Math.min(1, Math.max(0, (p.acclimatisation ?? 1) + (gain ? 1 / t.heatGainDays : -1 / t.heatLossDays)));
+    p.heat_day = 0;
+    p.days_closed = (p.days_closed ?? 0) + 1;
+    p.pal_last = rmr ? (p.day_expenditure_kcal ?? 0) / rmr : 0;
+    p.day_expenditure_kcal = 0;
+}
+export function physiologyProcess(body, room, o = {}) {
+    const clockH0 = o.clockH0 ?? 0, dayStartH = o.dayStartH ?? 12;
+    const schedule = (o.schedule ?? []).map(e => ({ ...e, met: metOf(e.activity),
+        activity: typeof e.activity === "number" ? null
+            : e.activity.startsWith("muscular.activations.") || e.activity.startsWith("physiology.met.")
+                ? e.activity : `physiology.met.${e.activity}` }));
+    const activityAt = (hour) => {
+        for (const e of schedule) {
+            const inside = e.fromH < e.toH ? hour >= e.fromH && hour < e.toH : hour >= e.fromH || hour < e.toH;
+            if (inside)
+                return { met: e.met, activity: e.activity, quality: e.sleepQuality ?? null };
+        }
+        if (o.met === undefined)
+            throw new Error(`physiology: no activity at ${hour} h and no default MET`);
+        return { met: o.met, activity: null, quality: null };
+    };
+    return { name: "body", every: o.every ?? 10, step(w, dt) {
+            const b = w.registry.component(body), r = w.registry.component(room), reg = w.registry, p = b.props, t = lib();
+            initialiseBodyWater(w, b);
+            deriveBodyWater(w, b);
+            const dtH = dt / 3600;
+            const clock = clockH0 + w.t / 3600, hour = ((clock % 24) + 24) % 24;
+            p.core_c ??= t.restCoreC;
+            p.acclimatisation ??= 1;
+            const rmr = restingMetabolicRate(b, o.rmrFormula, o.rmrOverride);
+            const dayIndex = Math.floor((clock - dayStartH) / 24);
+            if (p.day_index === undefined)
+                p.day_index = dayIndex;
+            const act = activityAt(hour), met = act.met;
+            // energy: the MET cost, corrected to this body's resting rate when it has one (gears/core-temperature-drift.md); heat is M - W
+            const mWatt = metabolicRateW(met, b, rmr);
+            const workWatt = Math.min(p.work_w ?? 0, mWatt);
+            const heatWatt = mWatt - workWatt;
+            const spent = mWatt * dt;
+            w.trace.record({ t: w.t, process: "body", quantity: "energy:chemical", from: body, to: "metabolism", amount: spent });
+            addHeat(w, b, heatWatt * dt);
+            w.trace.record({ t: w.t, process: "body", quantity: "energy", from: "metabolism", to: body, amount: heatWatt * dt });
+            if (workWatt > 0)
+                w.trace.record({ t: w.t, process: "body", quantity: "energy", from: "metabolism", to: "work", amount: workWatt * dt, note: "external work" });
+            p.expenditure_kcal = (p.expenditure_kcal ?? 0) + spent / KCAL_J;
+            p.day_expenditure_kcal = (p.day_expenditure_kcal ?? 0) + spent / KCAL_J;
+            p.fatigue_met_hours = (p.fatigue_met_hours ?? 0) + met * dtH;
+            if (act.quality !== null)
+                p.slept_effective_h = (p.slept_effective_h ?? 0) + dtH * act.quality;
+            // the air: temperature, vapour pressure (the room's rh, which atmosphere keeps; a room without one is dry air) and air speed
+            const area = bodyArea(b);
+            if (area === null)
+                throw new Error(`physiology: ${body} has neither area_m2 nor height_cm for its skin area`);
+            const airC = r.temperatureC, paPa = (r.props.rh ?? 0) * waterVapourPressure(airC), windMS = r.props.air_speed_ms ?? 0;
+            // heat stress: WBGT against the work class's ceiling, core drift above it (WBGT is the room's dry temperature unless it carries wbgt_c)
+            const wbgt = r.props.wbgt_c ?? r.temperatureC;
+            const ceiling = wbgtCeiling(met, p.acclimatisation);
+            const over = Math.max(0, wbgt - ceiling);
+            if (act.quality === null && wbgt > wbgtCeiling(met, 0))
+                p.heat_day = 1;
+            p.core_c += over * wbgtClass(met).driftCPerHPerC * dtH;
+            // ISO 7730 heat balance (PMV): the breath's dry and latent heat, the skin's diffusion, and the sweat the balance requires at
+            // the comfort skin temperature (ISO 7933's required evaporation, Ereq = M - W - Cres - Eres - C - R), at most the library's
+            // maximum, which the core_temp row's "sweat rate at max" takes; evaporation is capped by the Lewis relation, the rest drips
+            const netWm2 = heatWatt / area, skinC = PMV.skinC - PMV.skinPerW * netWm2;
+            const resDryW = PMV.resDry * mWatt * (PMV.resC - airC);
+            const resLatentW = Math.max(0, PMV.resLatent * mWatt * (PMV.resPa - paPa));
+            const diffW = Math.max(0, PMV.diff * area * (PMV.diffPa - PMV.diffPerW * netWm2 - paPa));
+            const requiredW = heatWatt - resDryW - resLatentW - dryHeatW(b, area, skinC, airC, windMS);
+            const evapMaxW = PMV.lewisKPerKPa * convectionH(skinC, airC, windMS) * area * Math.max(0, waterVapourPressure(skinC) - paPa) / 1000;
+            const hotCore = coreRow(p.core_c).sweatAtMax;
+            const sweatW = hotCore ? t.sweatMaxLph / 3600 * SWEAT_LATENT : Math.min(t.sweatMaxLph / 3600 * SWEAT_LATENT, Math.max(0, requiredW - diffW));
+            let breathKg = resLatentW * dt / SWEAT_LATENT;
+            let diffKg = Math.min(diffW, evapMaxW) * dt / SWEAT_LATENT;
+            let sweatKg = sweatW * dt / SWEAT_LATENT;
+            let evapSweatKg = Math.min(sweatKg, Math.max(0, evapMaxW * dt / SWEAT_LATENT - diffKg));
+            // metabolic water: oxidising glucose (6 O2 -> 6 CO2 + 6 H2O) or a fatty acid (palmitic, 23 O2 -> 16 CO2 + 16 H2O) gives one
+            // H2O per CO2, so water = RQ x O2, with the O2 of the MET cost (STPD litres at physics.ts's energy per litre) and the
+            // library's RQ (gasdynamics box_model); protein's share (its nitrogen leaves as urea) is not separated
+            const metabolicKg = t.rq * molesInVolume(P_SEA_LEVEL, mWatt / O2_ENERGY_J_PER_L / 1000, C_TO_K) * M.H2O * dt;
+            // urine: the kidney passes the surplus over the body's starting water, between the obligatory and the most dilute volume
+            const urineDay = (osm) => URINE.soluteMosmDay / osm / 86400 * dt;
+            let urineKg = Math.min(urineDay(URINE.minMosmL), Math.max(urineDay(URINE.maxMosmL), metabolicKg - (p.waterDeficitKg ?? 0) - breathKg - diffKg - sweatKg));
+            // Apply the water transfers after the heat calculation, so its interval uses one thermal capacity.
+            const availableKg = reg.contentMass(b, "water", "liquid") + metabolicKg;
+            const outKg = breathKg + diffKg + sweatKg + urineKg;
+            if (outKg > availableKg) {
+                const s = availableKg / outKg;
+                breathKg *= s;
+                diffKg *= s;
+                sweatKg *= s;
+                evapSweatKg *= s;
+                urineKg *= s;
+            }
+            const dripKg = sweatKg - evapSweatKg;
+            const sweatLph = sweatKg * 3600 / dt;
+            const dryJ = dryHeatW(b, area, b.temperatureC, airC, windMS) * dt, resDryJ = resDryW * dt;
+            const skinLatentJ = (diffKg + evapSweatKg) * SWEAT_LATENT, breathLatentJ = breathKg * SWEAT_LATENT;
+            addHeat(w, b, -(dryJ + resDryJ + skinLatentJ + breathLatentJ));
+            addHeat(w, r, dryJ + resDryJ);
+            w.trace.record({ t: w.t, process: "body", quantity: "energy", from: body, to: room, amount: dryJ, note: "skin convection and radiation" });
+            w.trace.record({ t: w.t, process: "body", quantity: "energy", from: body, to: room, amount: resDryJ, note: "breath, dry" });
+            w.trace.record({ t: w.t, process: "body", quantity: "energy", from: body, to: "sweat-latent", amount: skinLatentJ });
+            w.trace.record({ t: w.t, process: "body", quantity: "energy", from: body, to: "breath-latent", amount: breathLatentJ });
+            p.sweat_kg = (p.sweat_kg ?? 0) + sweatKg;
+            p.urine_kg = (p.urine_kg ?? 0) + urineKg;
+            reg.addContent(r, "water", "gas", breathKg + diffKg + evapSweatKg);
+            const waterProcess = "realism.physiology.water_balance";
+            addBodyWater(w, body, metabolicKg, waterProcess, "metabolic water", "oxidation");
+            addBodyWater(w, body, -evapSweatKg, waterProcess, "sweat", room);
+            if (dripKg > 0)
+                addBodyWater(w, body, -dripKg, waterProcess, "sweat", "drip");
+            addBodyWater(w, body, -diffKg, waterProcess, "skin diffusion", room);
+            addBodyWater(w, body, -breathKg, waterProcess, "breath", room);
+            addBodyWater(w, body, -urineKg, waterProcess, "urine", "urine");
+            // exposure
+            accumulateExposure(b, r, dt);
+            // Close after the final interval, so downstream nutrition sees exactly this day's totals.
+            const endDayIndex = Math.floor((clockH0 + (w.t + dt) / 3600 - dayStartH) / 24);
+            while (p.day_index < endDayIndex) {
+                closeDay(b, rmr);
+                p.day_index++;
+            }
+            // outputs by library id
+            const out = bodyOutputs(b), debt = sleepDebtRow(p.sleep_debt ?? 0), circ = circadianRow(hour), core = coreRow(p.core_c);
+            const hyd = hydrationRow(p.waterDeficitPct, over > 0);
+            p.intake_kcal ??= 0;
+            out.met = met;
+            out.activity = act.activity;
+            out.metabolic_w = mWatt;
+            out.rmr_kcal = rmr;
+            out.rmr_label = o.rmrOverride !== undefined ? o.rmrOverride.label : rmr === null ? null : "researched";
+            out.energy_balance_kcal = p.intake_kcal - p.expenditure_kcal;
+            out.energy_expenditure_kcal = p.expenditure_kcal;
+            out.day_expenditure_kcal = p.day_expenditure_kcal;
+            out.pal = rmr !== null && (p.days_closed ?? 0) > 0 ? p.pal_last : null;
+            out.sleep_debt = p.sleep_debt ?? 0;
+            out.sleep_debt_row = String(debt.row.id);
+            out.circadian = circ.factor;
+            out.circadian_row = String(circ.row.id);
+            out.alertness = debt.multiplier * circ.factor;
+            out.fatigue_met_hours = p.fatigue_met_hours;
+            out.wbgt_c = wbgt;
+            out.wbgt_ceiling_c = ceiling;
+            out.wbgt_row = String(wbgtClass(met).row.id);
+            out.acclimatisation = p.acclimatisation;
+            out.core_c = p.core_c;
+            out.core_state = core.state;
+            out.core_row = String(core.row.id);
+            out.work_capacity_heat = core.workCapacity;
+            out.sweat_l_per_h = sweatLph;
+            out.breath_water_l_per_h = breathKg * 3600 / dt;
+            out.skin_diffusion_l_per_h = diffKg * 3600 / dt;
+            out.urine_l_per_h = urineKg * 3600 / dt;
+            out.water_deficit_pct = p.waterDeficitPct;
+            out.hydration_state = hyd.effect;
+            out.hydration_row = String(hyd.row.id);
+            out.endurance_hydration = hyd.endurance;
+            out.work_capacity_hydration = hyd.workCapacity;
+            for (const band of hydrationCrisisRows())
+                trackCrisis(w, b.id, String(band.row.id), p.waterDeficitPct >= band.lo, { source: `${band.row.id}: ${String(band.row["Effect in the model"])} (deficit ${String(band.row["Deficit (% body mass)"])}% of body mass)` });
+        } };
+}

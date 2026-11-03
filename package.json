@@ -4,8 +4,11 @@
   "description": "The realism engine: registry, connection graph, conservation and process engine, scheduler, trace. Shared by the games; the pirate game is its first configuration.",
   "private": true,
   "type": "module",
-  "main": "src/index.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist", "src", "data", "README.md"],
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "lab": "node --experimental-strip-types src/cli.ts"
@@ -18,6 +21,9 @@
     "vitest": "^5.0.5"
   },
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   }
 }

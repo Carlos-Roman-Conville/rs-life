@@ -108,6 +108,8 @@ built, because a port needs a built registry row. Quantity ids come from the reg
    tags in its own paired units, removing each old folder link with cmd /c rmdir, never a recursive delete.
 6. **Re-audit.** The registry keeper re-audits ownership; the lint check from step 2f runs in both packages.
 
+(5423) realism releases carry dist/ built by npm run build; the release gate rebuilds and requires git diff --quiet -- dist.
+
 ## 6. Tests
 
 | Goes to Reality | Goes to Life | Integration (stays with Life, reads both) |
