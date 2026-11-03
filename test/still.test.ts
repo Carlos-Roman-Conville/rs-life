@@ -1,10 +1,11 @@
+import { metabolicHeat } from "../src/physiology.ts";
 import { describe, expect, it } from "vitest";
 
 const LONG = 60_000;
 import { World } from "../src/world.ts";
 import { evaporationProcess, roomProcess, wallsProcess, condensationProcess } from "../src/process.ts";
 import { runStill } from "../src/lab/still.ts";
-import { BRICK_WALL, CP, counterflowEffectiveness, condenserWaterCoefficient, surfaceEvaporationKgPerS, metabolicHeat, pressureAtAltitude, waterBoilingPoint, waterLatentHeat, waterVapourPressure, carbonCombustion, HHV } from "../src/physics.ts";
+import { BRICK_WALL, CP, counterflowEffectiveness, condenserWaterCoefficient, surfaceEvaporationKgPerS, pressureAtAltitude, waterBoilingPoint, waterLatentHeat, waterVapourPressure, carbonCombustion, HHV } from "../src/physics.ts";
 
 describe("physics constants and formulas (real-world values)", () => {
   it("water boils at 100 C at sea level and at about 92.5 C at 2,256 m (Antoine)", () => {

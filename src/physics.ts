@@ -74,20 +74,8 @@ export function airDensity(pPa: number, tK: number): number {
   return pPa * M.air / (R_GAS * tK);
 }
 
-/** Energy per litre of oxygen consumed (STPD), J/L: 20.1 kJ/L (PHY-MET, PHY-FAO). */
-export const O2_ENERGY_J_PER_L = 20100;
-
-/** Metabolic heat of a body, W: MET x 3.5 mL O2/kg/min x 20.1 kJ/L (PHY-MET, PHY-FAO). */
-export function metabolicHeat(met: number, massKg: number): number {
-  const litresO2PerMin = met * 3.5 * massKg / 1000;
-  return litresO2PerMin * O2_ENERGY_J_PER_L / 60;
-}
-
 /** Joules per kilocalorie, the thermochemical calorie (4.184 J), the unit the food and expenditure tables use. */
 export const KCAL_J = 4184;
-
-/** Latent heat of sweat evaporation, J/kg (about 2.43 MJ/kg at skin temperature). ENG-LAT. */
-export const SWEAT_LATENT = 2.43e6;
 
 export const C_TO_K = 273.15;
 

@@ -5,8 +5,8 @@ import { Scheduler } from '../src/scheduler.ts';
 import { defaultRegistry, type Component } from '../src/registry.ts';
 import { airContents, litresToKg } from '../src/atmosphere.ts';
 import { bodyGasFlows, breathingProcess, respiratoryStateFromVo2 } from '../src/respiration.ts';
-import { bodyOutputs, metabolicRateW, oxygenLitresPerMin, physiologyProcess } from '../src/physiology.ts';
-import { KCAL_J, O2_ENERGY_J_PER_L, P_SEA_LEVEL, MMHG_PER_PA } from '../src/physics.ts';
+import { O2_ENERGY_J_PER_L, bodyOutputs, metabolicRateW, oxygenLitresPerMin, physiologyProcess } from '../src/physiology.ts';
+import { KCAL_J, P_SEA_LEVEL, MMHG_PER_PA } from '../src/physics.ts';
 import { horseRows, runHorseStable, STABLE } from '../examples/horse-stable.ts';
 
 const component = (id: string, kind: string): Component => ({ id, kind, material: kind === 'body' ? 'flesh' : 'air_mass',

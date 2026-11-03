@@ -1,7 +1,7 @@
 /**
  * Human energy, heat, sleep and water as one engine process on a `body` component (kind "body", `props`). Every table
  * number comes from `data/library/physiology.json` through library.ts; the formulas are Mifflin-St Jeor (physiology.ts,
- * PHY-MSJ), the MET cost (physics.ts metabolicHeat, PHY-MET) and the drift rule of gears/core-temperature-drift.md. What the docs
+ * PHY-MSJ), the MET cost (physiology.ts metabolicHeat, PHY-MET) and the drift rule of gears/core-temperature-drift.md. What the docs
  * ask for and the library cannot support is listed in FLAGS.md and left disabled here.
  *
  * Inputs on `body.props` (all optional): height_cm, age_y, male (1 or 0) for the resting rate; acclimatisation (0 to 1,
@@ -18,11 +18,31 @@
 import type { Process } from "./scheduler.ts";
 import { addHeat, type World } from "./world.ts";
 import type { Component } from "./registry.ts";
-import { C_TO_K, KCAL_J, M, O2_ENERGY_J_PER_L, P_SEA_LEVEL, SWEAT_LATENT, heatFlow, metabolicHeat, molesInVolume, waterVapourPressure } from "./physics.ts";
+import { C_TO_K, KCAL_J, M, P_SEA_LEVEL, heatFlow, molesInVolume, waterVapourPressure } from "./physics.ts";
 import { libraryMeta, libraryRow, libraryTable, type LibraryRow } from "./library.ts";
 import { accumulateExposure } from "./respiration.ts";
 import { trackCrisis } from "./crisis.ts";
 import { bodyMassDelta, glycogenBoundWaterKg, GLYCOGEN_BOUND_WATER } from "./nutrition.ts";
+
+/** Energy per litre of oxygen consumed (STPD), J/L: 20.1 kJ/L (PHY-MET, PHY-FAO). */
+export const O2_ENERGY_J_PER_L = 20100;
+
+/** Metabolic heat of a body, W: MET x 3.5 mL O2/kg/min x 20.1 kJ/L (PHY-MET, PHY-FAO). */
+export function metabolicHeat(met: number, massKg: number): number {
+  const litresO2PerMin = met * 3.5 * massKg / 1000;
+  return litresO2PerMin * O2_ENERGY_J_PER_L / 60;
+}
+
+/** Latent heat of sweat evaporation, J/kg (about 2.43 MJ/kg at skin temperature). ENG-LAT. */
+export const SWEAT_LATENT = 2.43e6;
+
+/**
+ * A body in the room. The process is `physiologyProcess` (physiology.ts): metabolic heat by MET, the air exchange, sweat
+ * and its evaporative cooling, the water deficit, CO2 and CO exposure, and the library's heat, sleep and hydration states.
+ */
+export function bodyProcess(body: string, room: string, met: number): Process {
+  return physiologyProcess(body, room, { met });
+}
 
 export type BodyOutputs = Record<string, number | string | null>;
 

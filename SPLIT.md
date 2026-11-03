@@ -87,10 +87,10 @@ built, because a port needs a built registry row. Quantity ids come from the reg
 1. **Docs.** This file; the registry keeper re-owns registry rows by domain tag (reality or life). No code.
 2. **Untangle inside realism**, one belt unit each, full engine suite and the pirate world suite at each (a shared
    interface changes, PLATFORM.md section 11b):
-   a. body constants out of `physics.ts` into `physiology.ts`, re-exported from the old names until hosts move;
+   a. body constants out of `physics.ts` into `physiology.ts`, re-exported from the old names until hosts move; Done (2845).
    b. split `atmosphere.ts` into `atmosphere.ts` (Reality) and `respiration.ts` (Life); `index.ts` re-exports both; Done (2778).
    c. split `environment.ts` into `environment.ts` (Reality) and `exposure.ts` (Life); Done (2779).
-   d. move `bodyProcess` from `process.ts` to `physiology.ts`;
+   d. move `bodyProcess` from `process.ts` to `physiology.ts`; Done (2845).
    e. `trace.ts` keeps generic records; the `Crisis` type and its helpers live in `crisis.ts` only; Done (2777): trace keeps generic records; crisis.ts owns the crisis view.
    f. a lint check (a test) that no Reality-side module imports a Life-side one. Done (2780); exceptions listed in the test until steps 2a and 2d.
 3. **Process declarations.** `kernel.json` declares one process per mechanism group, so every quantity has one

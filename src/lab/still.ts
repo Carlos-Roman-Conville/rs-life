@@ -3,10 +3,11 @@
  * a worm condenser in a tub, pipes, a collector; the room as a box; a thermometer that drifts; wear.
  */
 import { defaultRegistry, type Component } from "../registry.ts";
+import { bodyProcess } from "../physiology.ts";
 import { World } from "../world.ts";
 import { Scheduler } from "../scheduler.ts";
 import { BRICK_WALL, airDensity, C_TO_K, M, pressureAtAltitude } from "../physics.ts";
-import { evaporationProcess, wallsProcess, bodyProcess, boilingProcess, combustionProcess, condensationProcess, controlProcess, lossesProcess, rng, roomProcess, thermometerProcess, wearProcess } from "../process.ts";
+import { evaporationProcess, wallsProcess, boilingProcess, combustionProcess, condensationProcess, controlProcess, lossesProcess, rng, roomProcess, thermometerProcess, wearProcess } from "../process.ts";
 
 export interface StillOptions {
   altitudeM?: number;        // sets the pressure (default 0)

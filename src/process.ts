@@ -4,7 +4,6 @@
  */
 import type { Process } from "./scheduler.ts";
 import { addHeat } from "./world.ts";
-import { physiologyProcess } from "./physiology.ts";
 import { roomAirProcess, roomGasFraction } from "./atmosphere.ts";
 import { CP, R_GAS, counterflowEffectiveness, condenserWaterCoefficient, surfaceEvaporationKgPerS, C_TO_K, M, carbonCombustion, heatFlow, waterBoilingPoint, waterLatentHeat } from "./physics.ts";
 
@@ -188,14 +187,6 @@ export function condensationProcess(condenser: string, tub: string, collector: s
 
 /** The room's box model: ventilation exchanges its gases and heat with the outside at ACH; humidity from its vapour. It lives in atmosphere.ts. */
 export function roomProcess(room: string): Process { return roomAirProcess(room); }
-
-/**
- * A body in the room. The process is `physiologyProcess` (physiology.ts): metabolic heat by MET, the air exchange, sweat
- * and its evaporative cooling, the water deficit, CO2 and CO exposure, and the library's heat, sleep and hydration states.
- */
-export function bodyProcess(body: string, room: string, met: number): Process {
-  return physiologyProcess(body, room, { met });
-}
 
 /** A thermometer on a component: reading = true + offset(drift x days) + noise(sigma); accuracy condition widens sigma. */
 export function thermometerProcess(thermometer: string, target: string, daysSinceCalibration: number, rand: () => number): Process {

@@ -32,11 +32,6 @@ const LIFE = new Set([
   "exposure",
 ]);
 
-/** Known Reality→Life imports until named SPLIT steps land. */
-const EXCEPTIONS = new Set([
-  "process->physiology", // until SPLIT step 2d
-]);
-
 const files = import.meta.glob("../src/*.ts", {
   query: "?raw",
   import: "default",
@@ -70,7 +65,6 @@ describe("Reality/Life split boundary", () => {
       for (const stem of stems) {
         if (!LIFE.has(stem)) continue;
         const edge = `${mod}->${stem}`;
-        if (EXCEPTIONS.has(edge)) continue;
         violations.push(edge);
       }
     }
