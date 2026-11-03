@@ -18,7 +18,8 @@ describe("soil nutrient ledger", () => {
     expect(trace.transfers).toEqual([{ t: 12, process: "uptake", quantity: "nutrient:N", from: "soil:a", to: "crop:a", amount: 23 }]);
     expect(trace.checks).toHaveLength(1);
     expect(trace.failed()).toEqual([]);
-    expect(journal.balance(12000).get("nutrient:N")).toEqual({ debits: 23, credits: 23 });
+    expect(journal.net("a/soil:a", "nutrient:N")).toBe(-23);
+    expect(journal.net("nutrients/crop:a", "nutrient:N")).toBe(23);
     const stocks = soil.snapshot(), accounts = ledger.snapshot(), entries = journal.entries();
     expect(() => transferNutrient(soil, "N", 978, "crop:a", "uptake", ledger, trace, 12)).toThrow();
     expect(soil.snapshot()).toEqual(stocks);
@@ -61,8 +62,12 @@ describe("soil nutrient ledger", () => {
       }
       for (const el of NUTRIENTS) {
         expect(Math.abs(soil.pool[el] + ledger.total(el) - cell().pool[el]) / cell().pool[el]).toBeLessThan(1e-9);
-        const balance = ledger.journal.balance().get(`nutrient:${el}`)!;
-        expect(balance.debits).toBe(balance.credits);
+        const amount = ({ N: 365, P: 36.5, K: 182.5 }[el] / steps) * steps;
+        const source = ledger.journal.net("a/soil:a", `nutrient:${el}`);
+        const destination = ledger.journal.net("nutrients/plant:a", `nutrient:${el}`);
+        expect(source).toBe(-amount);
+        expect(destination).toBe(amount);
+        expect(source + destination).toBe(0);
       }
       expect(trace.failed()).toEqual([]);
       return soil;
