@@ -11,6 +11,8 @@ export * from "./elements.ts";
 export * from "./library.ts";
 export * from "./physiology.ts";
 export * from "./nutrition.ts";
+export { energyRequirement, householdRequirement } from "./subsistence.ts";
+export type { EnergyScheduleEntry, EnergyRequirementOptions, EnergyRequirementResult, HouseholdRequirementResult } from "./subsistence.ts";
 export * from "./atmosphere.ts";
 export * from "./respiration.ts";
 export * from "./environment.ts";
